@@ -11,7 +11,7 @@ shopt -s nullglob
 configs=("$CONFIG_DIR"/*.sh)
 
 for config in "${configs[@]}"; do
-    unset DB_NAME DB_USER DB_PASSWORD
+    unset DB_NAME DB_USER DB_PASSWORD DB_MIGRATOR_USER DB_MIGRATOR_PASSWORD
     # Config files are trusted, repository-controlled shell files.
     # shellcheck disable=SC1090
     source "$config"
@@ -27,6 +27,14 @@ for config in "${configs[@]}"; do
     [[ "$DB_USER" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || {
         echo "Invalid DB_USER in $config: $DB_USER" >&2; exit 1;
     }
+    has_migrator=false
+    if [[ -n "${DB_MIGRATOR_USER:-}" ]]; then
+        : "${DB_MIGRATOR_PASSWORD:?DB_MIGRATOR_PASSWORD is required in $config}"
+        [[ "$DB_MIGRATOR_USER" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ && "$DB_MIGRATOR_USER" != "$DB_USER" ]] || {
+            echo "Invalid DB_MIGRATOR_USER in $config: $DB_MIGRATOR_USER" >&2; exit 1;
+        }
+        has_migrator=true
+    fi
 
     echo "Initializing database '$DB_NAME' for role '$DB_USER'"
 
@@ -43,4 +51,12 @@ SQL
         --set=db_user="$DB_USER" <<'SQL'
 CREATE DATABASE :"db_name" OWNER :"db_user";
 SQL
+
+    psql --username "$POSTGRES_USER" --dbname postgres \
+        --set=ON_ERROR_STOP=1 \
+        --set=db_name="$DB_NAME" --set=db_user="$DB_USER" \
+        --set=has_migrator="$has_migrator" \
+        --set=migrator_user="${DB_MIGRATOR_USER:-}" \
+        --set=migrator_password="${DB_MIGRATOR_PASSWORD:-}" \
+        --file=/opt/postgres/scripts/configure-access.sql
 done

@@ -8,37 +8,54 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Set POSTGRES_ADMIN_PASSWORD in .env}
       POSTGRES_DB: postgres
       PRODUCT_DB_PASSWORD: ${PRODUCT_DB_PASSWORD:?Set PRODUCT_DB_PASSWORD in .env}
+      PRODUCT_MIGRATOR_PASSWORD: ${PRODUCT_MIGRATOR_PASSWORD:?Set PRODUCT_MIGRATOR_PASSWORD in .env}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./postgres/init/00-create-databases.sh:/docker-entrypoint-initdb.d/00-create-databases.sh:ro
-      - ./postgres/config/databases:/opt/postgres/config/databases:ro
+      - ./infrastructure/database/postgres/init/00-create-databases.sh:/docker-entrypoint-initdb.d/00-create-databases.sh:ro
+      - ./infrastructure/database/postgres/config/databases:/opt/postgres/config/databases:ro
+      - ./infrastructure/database/postgres/scripts/configure-access.sql:/opt/postgres/scripts/configure-access.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d postgres"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d postgres"]
       interval: 5s
       timeout: 5s
       retries: 20
 
-  # Applies the product schema after PostgreSQL has initialized.
-  # The SQL is idempotent, so this can run on subsequent `docker compose up`.
-  product-migrate:
+  product-provision:
     image: postgres:17-alpine
     depends_on:
       postgres:
         condition: service_healthy
     environment:
+      DB_PROVISION_DIRECT: "true"
       PGHOST: postgres
       PGPORT: 5432
-      PGUSER: product_user
-      PGPASSWORD: ${PRODUCT_DB_PASSWORD:?Set PRODUCT_DB_PASSWORD in .env}
-      PGDATABASE: product_db
+      PGPASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Set POSTGRES_ADMIN_PASSWORD in .env}
+      POSTGRES_ADMIN_USER: ${POSTGRES_ADMIN_USER:-postgres}
+      PRODUCT_DB_PASSWORD: ${PRODUCT_DB_PASSWORD:?Set PRODUCT_DB_PASSWORD in .env}
+      PRODUCT_MIGRATOR_PASSWORD: ${PRODUCT_MIGRATOR_PASSWORD:?Set PRODUCT_MIGRATOR_PASSWORD in .env}
+    volumes:
+      - ./infrastructure:/workspace/infrastructure:ro
+    entrypoint: ["/bin/bash", "/workspace/infrastructure/database/postgres/scripts/db-provision.sh"]
+    command: ["product"]
+
+  # Applies the product schema after provisioning has completed.
+  product-migrate:
+    image: migrate/migrate:v4.18.3
+    depends_on:
+      product-provision:
+        condition: service_completed_successfully
+    environment:
+      PGPASSWORD: ${PRODUCT_MIGRATOR_PASSWORD:?Set PRODUCT_MIGRATOR_PASSWORD in .env}
     volumes:
       - ./services/product-service/migrations:/migrations:ro
-    entrypoint: ["/bin/sh", "-ec"]
     command:
-      - |
-        psql -v ON_ERROR_STOP=1 -f /migrations/0001-create-products-table.sql
+      - "-path"
+      - /migrations
+      - "-database"
+      - "postgres://product_migrator@postgres:5432/product_db?sslmode=disable&options=-c%20role%3Dproduct_user"
+      - up
 
   # Enable this profile after adding the Go application source and go.mod.
   product-service:
@@ -47,8 +64,8 @@ services:
       context: ./services/product-service
       dockerfile: Dockerfile
     depends_on:
-      postgres:
-        condition: service_healthy
+      product-migrate:
+        condition: service_completed_successfully
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
