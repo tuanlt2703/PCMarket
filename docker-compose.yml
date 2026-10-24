@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:17-alpine
-    container_name: pc-shop-postgres
+    container_name: pc-market-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_ADMIN_USER:-postgres}
@@ -42,7 +42,7 @@ services:
 
   # Applies the product schema after provisioning has completed.
   product-migrate:
-    image: migrate/migrate:v4.18.3
+    image: migrate/migrate:v4.19.1
     depends_on:
       product-provision:
         condition: service_completed_successfully
@@ -57,21 +57,21 @@ services:
       - "postgres://product_migrator@postgres:5432/product_db?sslmode=disable&options=-c%20role%3Dproduct_user"
       - up
 
-  # Enable this profile after adding the Go application source and go.mod.
-  product-service:
-    profiles: ["app"]
-    build:
-      context: ./services/product-service
-      dockerfile: Dockerfile
-    depends_on:
-      product-migrate:
-        condition: service_completed_successfully
-    environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: product_db
-      DB_USER: product_user
-      DB_PASSWORD: ${PRODUCT_DB_PASSWORD:?Set PRODUCT_DB_PASSWORD in .env}
+  # # Enable this profile after adding the Go application source and go.mod.
+  # product-service:
+  #   profiles: ["app"]
+  #   build:
+  #     context: ./services/product-service
+  #     dockerfile: Dockerfile
+  #   depends_on:
+  #     product-migrate:
+  #       condition: service_completed_successfully
+  #   environment:
+  #     DB_HOST: postgres
+  #     DB_PORT: 5432
+  #     DB_NAME: product_db
+  #     DB_USER: product_user
+  #     DB_PASSWORD: ${PRODUCT_DB_PASSWORD:?Set PRODUCT_DB_PASSWORD in .env}
 
 volumes:
   postgres_data:

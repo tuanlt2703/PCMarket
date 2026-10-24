@@ -33,7 +33,7 @@ source "$CONFIG"
 : "${DB_NAME:?DB_NAME is required}"
 : "${DB_USER:?DB_USER is required}"
 : "${DB_PASSWORD:?DB_PASSWORD is required}"
-
+echo "DB_NAME: $DB_NAME" >&2;
 [[ "$DB_NAME" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || { echo "Invalid DB_NAME" >&2; exit 2; }
 [[ "$DB_USER" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || { echo "Invalid DB_USER" >&2; exit 2; }
 has_migrator=false
