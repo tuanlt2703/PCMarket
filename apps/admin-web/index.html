@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>PCMarket Admin</title>
+    <!-- Same no-flash theme init as the AdminLTE template (must run before first paint) -->
+    <script>
+      (() => {
+        const root = document.documentElement
+        let stored = null
+        try {
+          stored = localStorage.getItem('lte-theme')
+        } catch {}
+        let resolved = 'light'
+        if (stored === 'dark' || stored === 'light') resolved = stored
+        else if (globalThis.matchMedia('(prefers-color-scheme: dark)').matches) resolved = 'dark'
+        root.setAttribute('data-bs-theme', resolved)
+        root.style.colorScheme = resolved
+        root.setAttribute('data-lte-theme-resolved', '')
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

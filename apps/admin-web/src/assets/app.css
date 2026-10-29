@@ -1,0 +1,39 @@
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.table td,
+.table th {
+  vertical-align: middle;
+}
+
+.spec-table th {
+  width: 40%;
+  font-weight: 600;
+}
+
+.toast-stack {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 2000;
+}
+
+.modal-backdrop-custom {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1050;
+}
+
+.modal.d-block {
+  z-index: 1055;
+}
+
+.min-w-0 {
+  min-width: 0;
+}
+
+.rows-editor td {
+  min-width: 110px;
+}
