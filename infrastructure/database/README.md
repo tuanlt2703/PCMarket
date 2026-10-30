@@ -62,9 +62,9 @@ Init runs only on first data-directory initialization. The subsequent provision
 job can safely reapply the same product configuration. Do not delete the volume
 to apply changes to an existing database.
 
-`product-service` remains under the `app` profile until its Go source and module
-are available. Once implemented, `docker compose --profile app up -d` also gates
-its startup on migration completion. Already-running applications are not paused
+`product-service` runs under the `app` profile: `docker compose --profile app up -d`
+also gates its startup on migration completion and publishes it on
+`PRODUCT_SERVICE_PORT` (default `8081`). Already-running applications are not paused
 or automatically restarted while migrations run; keep migrations backward
 compatible or stop the application explicitly before incompatible changes.
 
@@ -113,12 +113,13 @@ If passwords change, update or restart affected application clients as needed.
 
 ## 4. Add and apply product migrations
 
-Add the next version's SQL pair under `services/product-service/migrations/`,
-following the existing naming convention. For example:
+Add the next version's SQL pair under `services/product-service/migrations/`.
+Versions are UTC timestamps in `YYYYMMDDhhmmss` form so that numeric order
+matches creation order. For example:
 
 ```text
-000002_add_product_category.up.sql
-000002_add_product_category.down.sql
+20261105093000_add_product_images.up.sql
+20261105093000_add_product_images.down.sql
 ```
 
 Do not edit versions already applied to a database. After adding a migration:
