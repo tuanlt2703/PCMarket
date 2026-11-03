@@ -6,12 +6,15 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"product-service/internal/platform/apperror"
 	"product-service/internal/platform/database"
 	"product-service/internal/platform/httpx"
 )
 
+// manufacturerColumns must stay in the same order as scanManufacturer.
 const manufacturerColumns = "id, code, name, description, is_active, created_at, updated_at"
 
+// ManufacturerRepository reads and writes the manufacturers table.
 type ManufacturerRepository struct {
 	db *database.DB
 }
@@ -26,65 +29,92 @@ func scanManufacturer(row pgx.Row) (Manufacturer, error) {
 	return m, err
 }
 
-func (r *ManufacturerRepository) List(ctx context.Context, f ManufacturerFilter, p httpx.Page) ([]Manufacturer, int64, error) {
+func (r *ManufacturerRepository) List(ctx context.Context, filter ManufacturerFilter, page httpx.Page) ([]Manufacturer, int64, error) {
+	// An empty search text ($1 = '') or a NULL is_active ($2) disables that filter.
 	const where = `
 WHERE ($1 = '' OR code ILIKE '%' || $1 || '%' OR name ILIKE '%' || $1 || '%')
   AND ($2::boolean IS NULL OR is_active = $2)`
-	args := []any{f.Query, f.IsActive}
 
 	var total int64
-	if err := r.db.Q(ctx).QueryRow(ctx, "SELECT COUNT(*) FROM manufacturers"+where, args...).Scan(&total); err != nil {
-		return nil, 0, err
-	}
-
-	rows, err := r.db.Q(ctx).Query(ctx,
-		"SELECT "+manufacturerColumns+" FROM manufacturers"+where+" ORDER BY name, id LIMIT $3 OFFSET $4",
-		append(args, p.PageSize, p.Offset())...)
+	countSQL := "SELECT COUNT(*) FROM manufacturers" + where
+	err := r.db.Conn(ctx).QueryRow(ctx, countSQL, filter.Query, filter.IsActive).Scan(&total)
 	if err != nil {
 		return nil, 0, err
 	}
-	items, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Manufacturer, error) { return scanManufacturer(row) })
-	return items, total, err
+
+	listSQL := "SELECT " + manufacturerColumns + " FROM manufacturers" + where +
+		" ORDER BY name, id LIMIT $3 OFFSET $4"
+	rows, err := r.db.Conn(ctx).Query(ctx, listSQL, filter.Query, filter.IsActive, page.Size, page.Offset())
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var items []Manufacturer
+	for rows.Next() {
+		m, err := scanManufacturer(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		items = append(items, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
 }
 
 func (r *ManufacturerRepository) Get(ctx context.Context, id int64) (Manufacturer, error) {
-	m, err := scanManufacturer(r.db.Q(ctx).QueryRow(ctx,
-		"SELECT "+manufacturerColumns+" FROM manufacturers WHERE id = $1", id))
-	return m, database.MapError(err, manufacturerNotFound(id))
+	sql := "SELECT " + manufacturerColumns + " FROM manufacturers WHERE id = $1"
+	m, err := scanManufacturer(r.db.Conn(ctx).QueryRow(ctx, sql, id))
+	if err != nil {
+		return Manufacturer{}, database.MapError(err, manufacturerNotFound(id))
+	}
+	return m, nil
 }
 
-func (r *ManufacturerRepository) Create(ctx context.Context, in CreateManufacturerInput) (Manufacturer, error) {
-	m, err := scanManufacturer(r.db.Q(ctx).QueryRow(ctx, `
+func (r *ManufacturerRepository) Create(ctx context.Context, input CreateManufacturerInput) (Manufacturer, error) {
+	sql := `
 INSERT INTO manufacturers (code, name, description, is_active)
 VALUES ($1, $2, $3, COALESCE($4, TRUE))
-RETURNING `+manufacturerColumns,
-		in.Code, in.Name, in.Description, in.IsActive))
-	return m, database.MapError(err, "")
+RETURNING ` + manufacturerColumns
+	row := r.db.Conn(ctx).QueryRow(ctx, sql, input.Code, input.Name, input.Description, input.IsActive)
+	m, err := scanManufacturer(row)
+	if err != nil {
+		return Manufacturer{}, database.MapError(err, "")
+	}
+	return m, nil
 }
 
-func (r *ManufacturerRepository) Update(ctx context.Context, id int64, in UpdateManufacturerInput) (Manufacturer, error) {
-	u := database.NewUpdates(id)
-	database.Set(u, "code", in.Code)
-	database.Set(u, "name", in.Name)
-	database.Set(u, "description", in.Description)
-	database.Set(u, "is_active", in.IsActive)
-	if u.Empty() {
+func (r *ManufacturerRepository) Update(ctx context.Context, id int64, input UpdateManufacturerInput) (Manufacturer, error) {
+	update := database.NewUpdateBuilder(id)
+	database.SetIfPresent(update, "code", input.Code)
+	database.SetIfPresent(update, "name", input.Name)
+	database.SetIfPresent(update, "description", input.Description)
+	database.SetIfPresent(update, "is_active", input.IsActive)
+	if update.IsEmpty() {
 		return r.Get(ctx, id)
 	}
-	m, err := scanManufacturer(r.db.Q(ctx).QueryRow(ctx,
-		u.SQL("manufacturers", manufacturerColumns), u.Args()...))
-	return m, database.MapError(err, manufacturerNotFound(id))
+
+	row := r.db.Conn(ctx).QueryRow(ctx, update.SQL("manufacturers", manufacturerColumns), update.Args()...)
+	m, err := scanManufacturer(row)
+	if err != nil {
+		return Manufacturer{}, database.MapError(err, manufacturerNotFound(id))
+	}
+	return m, nil
 }
 
 func (r *ManufacturerRepository) Delete(ctx context.Context, id int64) error {
-	tag, err := r.db.Q(ctx).Exec(ctx, "DELETE FROM manufacturers WHERE id = $1", id)
+	result, err := r.db.Conn(ctx).Exec(ctx, "DELETE FROM manufacturers WHERE id = $1", id)
 	if err != nil {
 		return database.MapError(err, "")
 	}
-	if tag.RowsAffected() == 0 {
-		return database.MapError(pgx.ErrNoRows, manufacturerNotFound(id))
+	if result.RowsAffected() == 0 {
+		return apperror.NotFound(manufacturerNotFound(id))
 	}
 	return nil
 }
 
-func manufacturerNotFound(id int64) string { return fmt.Sprintf("manufacturer %d not found", id) }
+func manufacturerNotFound(id int64) string {
+	return fmt.Sprintf("manufacturer %d not found", id)
+}

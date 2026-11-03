@@ -10,16 +10,17 @@ import (
 	"product-service/internal/platform/optional"
 )
 
+// specRepositoryStub keeps one stored spec in memory and records the last write.
 type specRepositoryStub struct {
-	stored  *Attributes
-	input   Attributes
-	modelID int64
-	upserts int
-	err     error
+	stored        *Attributes // nil means no spec stored yet
+	written       Attributes
+	writtenModel  int64
+	upsertCounter int
+	err           error
 }
 
 func (r *specRepositoryStub) Get(_ context.Context, modelID int64) (Spec, error) {
-	return Spec{ModelID: modelID, Attributes: r.input}, r.err
+	return Spec{ModelID: modelID, Attributes: r.written}, r.err
 }
 
 func (r *specRepositoryStub) GetPublic(ctx context.Context, modelID int64) (Spec, error) {
@@ -33,22 +34,30 @@ func (r *specRepositoryStub) GetForUpdate(_ context.Context, modelID int64) (Spe
 	return Spec{ModelID: modelID, Attributes: *r.stored}, nil
 }
 
-func (r *specRepositoryStub) Upsert(_ context.Context, modelID int64, input Attributes) error {
-	r.upserts++
-	r.modelID, r.input = modelID, input
+func (r *specRepositoryStub) Upsert(_ context.Context, modelID int64, attributes Attributes) error {
+	r.upsertCounter++
+	r.writtenModel, r.written = modelID, attributes
 	return r.err
 }
 
-func (r *specRepositoryStub) Delete(context.Context, int64) error { return r.err }
+func (r *specRepositoryStub) Delete(context.Context, int64) error {
+	return r.err
+}
 
-func TestServiceReceivesTypedInput(t *testing.T) {
+func TestServiceUpsert(t *testing.T) {
 	repo := &specRepositoryStub{}
 	service := NewService(repo)
-	patch := Patch{CoreCount: optional.Of[int32](8), ThreadCount: optional.Of[int32](16), MemoryTypeIDs: optional.Of([]int64{2})}
+	patch := Patch{
+		CoreCount:     optional.Of[int32](8),
+		ThreadCount:   optional.Of[int32](16),
+		MemoryTypeIDs: optional.Of([]int64{2}),
+	}
+
 	spec, err := service.Upsert(context.Background(), 42, patch)
-	if err != nil || spec.ModelID != 42 || repo.modelID != 42 || repo.upserts != 1 {
+	if err != nil || spec.ModelID != 42 || repo.writtenModel != 42 || repo.upsertCounter != 1 {
 		t.Fatalf("upsert = %+v, %v; repo = %+v", spec, err, repo)
 	}
+
 	encoded, err := json.Marshal(spec)
 	if err != nil {
 		t.Fatal(err)
@@ -57,13 +66,15 @@ func TestServiceReceivesTypedInput(t *testing.T) {
 	if err := json.Unmarshal(encoded, &response); err != nil {
 		t.Fatal(err)
 	}
-	if response["core_count"] != float64(8) || response["attributes"] != nil || response["Fields"] != nil {
-		t.Fatalf("response must remain flattened: %s", encoded)
+	if response["core_count"] != float64(8) || response["Attributes"] != nil {
+		t.Fatalf("response must stay flat: %s", encoded)
 	}
+
 	patch.ThreadCount = optional.Of[int32](4)
-	if _, err := service.Upsert(context.Background(), 42, patch); !errors.Is(err, apperror.ErrInvalid) || repo.upserts != 1 {
-		t.Fatalf("invalid input reached repository: %v, upserts=%d", err, repo.upserts)
+	if _, err := service.Upsert(context.Background(), 42, patch); !errors.Is(err, apperror.ErrInvalid) || repo.upsertCounter != 1 {
+		t.Fatalf("invalid input reached repository: %v, upserts=%d", err, repo.upsertCounter)
 	}
+
 	expected := errors.New("write failed")
 	repo.err = expected
 	patch.ThreadCount = optional.Of[int32](16)
@@ -80,8 +91,8 @@ func TestServiceMergesPatchIntoStoredSpec(t *testing.T) {
 	if _, err := service.Upsert(context.Background(), 1, Patch{SocketID: optional.Null[int64]()}); err != nil {
 		t.Fatal(err)
 	}
-	if repo.input.CoreCount == nil || *repo.input.CoreCount != 8 || repo.input.SocketID != nil {
-		t.Fatalf("merged = %+v", repo.input)
+	if repo.written.CoreCount == nil || *repo.written.CoreCount != 8 || repo.written.SocketID != nil {
+		t.Fatalf("merged = %+v", repo.written)
 	}
 
 	// Cross-field rules are checked against the merged result, not just the patch.

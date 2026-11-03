@@ -11,7 +11,7 @@ type Module struct {
 }
 
 func NewModule(db *database.DB, specs SpecReader, offers OfferReader) *Module {
-	return &Module{handler: NewHandler(NewService(NewQueryRepository(db), specs, offers))}
+	return &Module{handler: NewHandler(NewService(NewRepository(db), specs, offers))}
 }
 
 // RegisterRoutes mounts the public storefront API:

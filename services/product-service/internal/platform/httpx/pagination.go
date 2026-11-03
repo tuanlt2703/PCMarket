@@ -11,13 +11,18 @@ const (
 	maxPageSize     = 100
 )
 
+// Page is the requested page; Number starts at 1.
 type Page struct {
-	Page     int
-	PageSize int
+	Number int
+	Size   int
 }
 
-func (p Page) Offset() int { return (p.Page - 1) * p.PageSize }
+// Offset is the number of rows to skip, for SQL "LIMIT size OFFSET offset".
+func (p Page) Offset() int {
+	return (p.Number - 1) * p.Size
+}
 
+// PageResult is the JSON body of every list endpoint.
 type PageResult[T any] struct {
 	Items    []T   `json:"items"`
 	Page     int   `json:"page"`
@@ -25,19 +30,21 @@ type PageResult[T any] struct {
 	Total    int64 `json:"total"`
 }
 
-func NewPageResult[T any](items []T, p Page, total int64) PageResult[T] {
+func NewPageResult[T any](items []T, page Page, total int64) PageResult[T] {
 	if items == nil {
-		items = []T{}
+		items = []T{} // send [] instead of null
 	}
-	return PageResult[T]{Items: items, Page: p.Page, PageSize: p.PageSize, Total: total}
+	return PageResult[T]{Items: items, Page: page.Number, PageSize: page.Size, Total: total}
 }
 
-// ParsePage reads ?page=&page_size= with safe defaults and bounds.
+// ParsePage reads ?page=&page_size=. Missing or invalid values fall back to
+// page 1 and the default size; the size is capped at maxPageSize.
 func ParsePage(c *gin.Context) Page {
-	page, err := strconv.Atoi(c.Query("page"))
-	if err != nil || page < 1 {
-		page = 1
+	number, err := strconv.Atoi(c.Query("page"))
+	if err != nil || number < 1 {
+		number = 1
 	}
+
 	size, err := strconv.Atoi(c.Query("page_size"))
 	if err != nil || size < 1 {
 		size = defaultPageSize
@@ -45,33 +52,6 @@ func ParsePage(c *gin.Context) Page {
 	if size > maxPageSize {
 		size = maxPageSize
 	}
-	return Page{Page: page, PageSize: size}
-}
 
-// QueryBool parses an optional boolean query parameter, writing a 400 response on failure.
-func QueryBool(c *gin.Context, name string) (*bool, bool) {
-	raw, ok := c.GetQuery(name)
-	if !ok || raw == "" {
-		return nil, true
-	}
-	v, err := strconv.ParseBool(raw)
-	if err != nil {
-		BadRequest(c, "invalid "+name)
-		return nil, false
-	}
-	return &v, true
-}
-
-// QueryInt64 parses an optional positive int64 query parameter, writing a 400 response on failure.
-func QueryInt64(c *gin.Context, name string) (*int64, bool) {
-	raw, ok := c.GetQuery(name)
-	if !ok || raw == "" {
-		return nil, true
-	}
-	v, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil || v <= 0 {
-		BadRequest(c, "invalid "+name)
-		return nil, false
-	}
-	return &v, true
+	return Page{Number: number, Size: size}
 }

@@ -37,15 +37,15 @@ func NewRouter(db *database.DB) *gin.Engine {
 
 	catalogModule := catalog.NewModule(db)
 	specsModule := specs.NewModule(db, catalogModule.Models,
-		cpu.New(db),
-		// Register gpu.New(db), motherboard.New(db), ... here as they are implemented.
+		cpu.NewComponent(db),
+		// Add gpu.NewComponent(db), motherboard.NewComponent(db), ... here as they are implemented.
 	)
 
 	modules := []Module{
 		catalogModule,
 		specsModule,
 		lookup.NewModule(db),
-		discovery.NewModule(db, specReader{specsModule.Service}, discovery.NoopOfferReader{}),
+		discovery.NewModule(db, publicSpecReader{specsModule.Service}, discovery.NoOffers{}),
 	}
 
 	v1 := router.Group("/api/v1")
@@ -56,14 +56,17 @@ func NewRouter(db *database.DB) *gin.Engine {
 	return router
 }
 
-// specReader adapts the Specs service to Discovery's SpecReader port using the
-// public view, which hides inactive lookup values.
-type specReader struct{ svc *specs.Service }
+// publicSpecReader lets Discovery read specifications through the Specs
+// service. It implements discovery.SpecReader and uses the public view, which
+// hides inactive lookup values.
+type publicSpecReader struct {
+	service *specs.Service
+}
 
-func (r specReader) SpecFor(ctx context.Context, modelID int64) (any, error) {
-	s, err := r.svc.GetPublic(ctx, modelID)
+func (r publicSpecReader) SpecFor(ctx context.Context, modelID int64) (any, error) {
+	spec, err := r.service.GetPublic(ctx, modelID)
 	if err != nil {
 		return nil, err
 	}
-	return s, nil
+	return spec, nil
 }

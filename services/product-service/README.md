@@ -13,52 +13,60 @@ internal/
   app/                   wiring module + đăng ký route (/api/v1, /api/v1/admin)
   platform/              hạ tầng dùng chung, không chứa nghiệp vụ
     apperror/            ErrNotFound / ErrConflict / ErrInvalid / ErrMalformed / ErrTooLarge
-    database/            pgxpool, InTx (transaction qua context), map lỗi Postgres,
-                         Updates (UPDATE từng phần)
-    httpx/               error -> HTTP status, decode JSON chặt + validate, phân trang
+    database/            pgxpool, RunInTransaction (transaction qua context), map lỗi Postgres,
+                         UpdateBuilder (UPDATE từng phần)
+    httpx/               response.go: error -> HTTP status; request_body.go: decode JSON chặt;
+                         validation.go: Validator; params.go: path/query param; phân trang
     optional/            Field[T]: phân biệt field bị bỏ qua và null trong request
   modules/
-    catalog/             mỗi entity: dữ liệu, DTO, handler, service, repository
+    catalog/             mỗi entity: dữ liệu, request, handler, service, repository
                          (component_type, manufacturer, product_model)
-    lookup/              handler -> service (registry) -> repository generic
-    specs/               handler -> service (registry, transaction)
-      cpu/               spec.go, dto.go, service.go, repository.go, module.go
-    discovery/           handler -> service -> query_repository
+    lookup/              handler -> service (registry) -> repository dùng chung cho mọi bảng
+    specs/               handler -> service (registry, transaction) -> Component
+      cpu/               spec.go, patch.go, request.go, component.go, service.go, repository.go
+    discovery/           handler -> service -> repository (+ dependencies.go)
 ```
 
 Mỗi module tự đăng ký route qua `RegisterRoutes(admin, public)`.
 
 ### Trách nhiệm và cách đặt tên
 
-- `module.go` chỉ khởi tạo dependencies, adapter và đăng ký route; không xử lý HTTP
+- `module.go` chỉ khởi tạo dependencies và đăng ký route; không xử lý HTTP
   hoặc kiểm tra nghiệp vụ.
-- `*_handler.go` / `handler.go`: đọc request, parse/validate DTO, gọi service và trả HTTP.
+- `*_handler.go` / `handler.go`: đọc request, decode + validate request, gọi service và trả HTTP.
 - `*_service.go` / `service.go`: kiểm tra nghiệp vụ, chọn loại dữ liệu, điều phối
   repository và transaction. Không parse JSON, không phụ thuộc Gin.
 - `*_repository.go` / `repository.go`: thực thi SQL và ánh xạ kết quả.
-- `*_dto.go` / `dto.go`: request DTO, `json`/`binding` và chuyển đổi sang input có
-  kiểu cho service. Ví dụ `CreateProductModelRequest.Input()`.
+- `*_request.go` / `request.go`: struct JSON request, hàm `Validate()` (kiểm tra
+  từng field, viết tường minh bằng `httpx.Validator`, không dùng `binding` tag) và
+  chuyển đổi sang input có kiểu cho service. Ví dụ `CreateProductModelRequest.Input()`.
+  Mọi request phải cài `Validate()` (interface `httpx.Request`), nên quên validate
+  sẽ báo lỗi lúc compile.
 - File dữ liệu đặt theo đúng thực thể: `product_model.go` chứa `ProductModel`
   (model linh kiện, tương ứng bảng `models`), `cpu/spec.go` chứa `Spec` và
-  `Attributes`, `lookup/lookup.go` chứa `Item`. Không dùng tên chung `model.go`.
-  Dữ liệu trả về có thể giữ `json` tags để bảo toàn response, nhưng không có
-  `binding` tags. Chỉ tách response DTO riêng khi cần một hình dạng khác.
+  `Attributes`, `cpu/patch.go` chứa `Patch`, `lookup/item.go` chứa `Item`.
+  Không dùng tên chung `model.go`. Dữ liệu trả về có thể giữ `json` tags để bảo
+  toàn response. Chỉ tách response struct riêng khi cần một hình dạng khác.
+- `dependencies.go` (discovery) khai báo các interface mà module cần từ bên ngoài.
+- `component.go` (specs) khai báo interface `Component`; `cpu/component.go` cài nó.
 
 Luồng ghi CPU:
 
 ```text
-Specs Handler -> CPU request decoder (dto.go) -> Patch
-              -> Specs Service (transaction, kiểm tra loại model)
+Specs Handler -> Specs Service.ComponentFor(model) -> cpu.Component.DecodeRequest (request.go) -> Patch
+              -> Specs Service.Upsert (transaction, kiểm tra loại model)
               -> CPU Service (gộp Patch vào spec hiện có, rule CPU) -> CPU Repository
 ```
 
-CPU không có handler HTTP riêng vì dùng chung endpoint Specs. Registry ghép
-service adapter với request decoder; chỉ handler gọi decoder. Service không nhận
-`[]byte`, còn CPU service nhận `Patch` có kiểu cụ thể, khóa dòng spec hiện có
-(`SELECT ... FOR UPDATE`), gộp patch rồi kiểm tra rule trên kết quả đã gộp.
+CPU không có handler HTTP riêng vì dùng chung endpoint Specs. Mỗi loại linh kiện
+cài interface `specs.Component` (giống abstract base class trong C++), gồm cả
+`DecodeRequest`; chỉ handler gọi `DecodeRequest`. Service không nhận `[]byte`,
+còn CPU service nhận `Patch` có kiểu cụ thể, khóa dòng spec hiện có
+(`SELECT ... FOR UPDATE`), gộp patch rồi kiểm tra rule giữa nhiều field trên kết
+quả đã gộp.
 
-Code generic chỉ dùng ở `lookup`, vì các bảng lookup chỉ là danh sách giá trị và
-không có nghiệp vụ riêng. Các entity nghiệp vụ như `component_types` và
+Code dùng chung cho nhiều bảng chỉ có ở `lookup`, vì các bảng lookup chỉ là danh
+sách giá trị và không có nghiệp vụ riêng. Các entity nghiệp vụ như `component_types` và
 `manufacturers` được viết tường minh, dù cấu trúc bảng hiện tại giống lookup, để
 có thể thêm trường hoặc rule riêng mà không ảnh hưởng chỗ khác.
 
@@ -66,8 +74,8 @@ Quy tắc phụ thuộc:
 
 - `catalog`, `lookup` không phụ thuộc module khác.
 - `specs` chỉ dùng `catalog` qua interface `ModelTypeResolver`.
-- `discovery` tự query DB bằng `QueryRepository`; specs và SKU đi qua port
-  (`SpecReader`, `OfferReader`) được nối trong `internal/app`.
+- `discovery` tự query DB bằng `Repository`; specs và SKU đi qua interface
+  (`SpecReader`, `OfferReader` trong `dependencies.go`) được nối trong `internal/app`.
 
 ## API
 
@@ -106,15 +114,17 @@ Quy ước:
 
 ## Thêm loại spec mới (ví dụ GPU)
 
-1. Tạo `internal/modules/specs/gpu/` theo mẫu `cpu/` gồm `spec.go`, `dto.go`,
-   `service.go`, `repository.go` và `module.go`. DTO dùng `optional.Field` và
-   chuyển sang `Patch`; service gộp patch vào spec hiện có và kiểm tra nghiệp vụ;
-   repository ghi bảng chính và thay toàn bộ bảng con trong transaction do
-   `specs.Service` mở. `GetPublic` phải ẩn tham chiếu tới lookup inactive.
-2. Đăng ký `gpu.New(db)` trong `internal/app/app.go`.
-   Hàm này trả `specs.Registration` gồm service adapter và request decoder.
-3. `ComponentTypeCode()` của adapter và input phải khớp `component_types.code`
-   (ví dụ `gpu`).
+1. Tạo `internal/modules/specs/gpu/` theo mẫu `cpu/` gồm `spec.go`, `patch.go`,
+   `request.go`, `component.go`, `service.go` và `repository.go`. Request dùng
+   `optional.Field`, có `Validate()` và chuyển sang `Patch`; service gộp patch vào
+   spec hiện có và kiểm tra rule giữa nhiều field; repository ghi bảng chính và
+   thay toàn bộ bảng con trong transaction do `specs.Service` mở. `GetPublic`
+   phải ẩn tham chiếu tới lookup inactive.
+2. `gpu.Component` cài interface `specs.Component` (thêm dòng
+   `var _ specs.Component = (*Component)(nil)` để compiler kiểm tra), rồi đăng ký
+   `gpu.NewComponent(db)` trong `internal/app/app.go`.
+3. `ComponentTypeCode()` của component và của `Patch` phải khớp
+   `component_types.code` (ví dụ `gpu`).
 
 CPU request giữ nguyên JSON phẳng. Decoder chỉ chấp nhận đúng một JSON object;
 `null`, array, field lạ hoặc dữ liệu thừa phía sau object trả 400. Giá trị số có

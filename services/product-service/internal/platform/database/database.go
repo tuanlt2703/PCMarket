@@ -9,18 +9,21 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Querier is implemented by both *pgxpool.Pool and pgx.Tx so repositories
-// work the same way inside and outside a transaction.
+// Querier is the set of query methods shared by *pgxpool.Pool and pgx.Tx.
+// Repositories only use this interface, so the same code works both inside and
+// outside a transaction.
 type Querier interface {
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
+// DB owns the PostgreSQL connection pool.
 type DB struct {
 	pool *pgxpool.Pool
 }
 
+// Connect opens the pool and checks that the database is reachable.
 func Connect(ctx context.Context, url string) (*DB, error) {
 	pool, err := pgxpool.New(ctx, url)
 	if err != nil {
@@ -33,45 +36,22 @@ func Connect(ctx context.Context, url string) (*DB, error) {
 	return &DB{pool: pool}, nil
 }
 
-func (d *DB) Close() { d.pool.Close() }
-
-func (d *DB) Ping(ctx context.Context) error { return d.pool.Ping(ctx) }
-
-type txKey struct{}
-
-// Q returns the transaction bound to ctx, or the pool when there is none.
-func (d *DB) Q(ctx context.Context) Querier {
-	if tx, ok := ctx.Value(txKey{}).(pgx.Tx); ok {
-		return tx
-	}
-	return d.pool
+func (db *DB) Close() {
+	db.pool.Close()
 }
 
-// InTx runs fn in a transaction. Nested calls join the outer transaction.
-func (d *DB) InTx(ctx context.Context, fn func(ctx context.Context) error) (err error) {
-	if _, ok := ctx.Value(txKey{}).(pgx.Tx); ok {
-		return fn(ctx)
-	}
+func (db *DB) Ping(ctx context.Context) error {
+	return db.pool.Ping(ctx)
+}
 
-	tx, err := d.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
+// Conn returns the connection to run a query on: the transaction started by
+// RunInTransaction when ctx carries one, otherwise the pool.
+//
+// Always call it with the ctx of the current request, never a stored one,
+// otherwise the query silently runs outside the transaction.
+func (db *DB) Conn(ctx context.Context) Querier {
+	if tx := transactionFrom(ctx); tx != nil {
+		return tx
 	}
-	defer func() {
-		if p := recover(); p != nil {
-			_ = tx.Rollback(ctx)
-			panic(p)
-		}
-		if err != nil {
-			_ = tx.Rollback(ctx)
-		}
-	}()
-
-	if err = fn(context.WithValue(ctx, txKey{}, tx)); err != nil {
-		return err
-	}
-	if err = tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit tx: %w", err)
-	}
-	return nil
+	return db.pool
 }

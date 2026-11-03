@@ -44,11 +44,11 @@ func (h *ManufacturerHandler) Get(c *gin.Context) {
 }
 
 func (h *ManufacturerHandler) Create(c *gin.Context) {
-	var in CreateManufacturerRequest
-	if !httpx.BindJSON(c, &in) {
+	var request CreateManufacturerRequest
+	if !httpx.BindJSON(c, &request) {
 		return
 	}
-	m, err := h.svc.Create(c.Request.Context(), in.Input())
+	m, err := h.svc.Create(c.Request.Context(), request.Input())
 	if err != nil {
 		httpx.WriteError(c, err)
 		return
@@ -61,11 +61,11 @@ func (h *ManufacturerHandler) Update(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var in UpdateManufacturerRequest
-	if !httpx.BindJSON(c, &in) {
+	var request UpdateManufacturerRequest
+	if !httpx.BindJSON(c, &request) {
 		return
 	}
-	m, err := h.svc.Update(c.Request.Context(), id, in.Input())
+	m, err := h.svc.Update(c.Request.Context(), id, request.Input())
 	if err != nil {
 		httpx.WriteError(c, err)
 		return

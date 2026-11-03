@@ -6,15 +6,19 @@ import (
 	"product-service/internal/platform/apperror"
 )
 
-// ModelTypeResolver is implemented by the Catalog module.
+// ModelTypeResolver finds the component type code of a model.
+// It is implemented by catalog.ProductModelService.
 type ModelTypeResolver interface {
 	ComponentTypeCode(ctx context.Context, modelID int64) (string, error)
 }
 
+// Transactor runs fn inside a database transaction.
+// It is implemented by *database.DB; tests use a stub.
 type Transactor interface {
-	InTx(context.Context, func(context.Context) error) error
+	RunInTransaction(ctx context.Context, fn func(ctx context.Context) error) error
 }
 
+// Service finds the right Component for a model and forwards the call to it.
 type Service struct {
 	db       Transactor
 	models   ModelTypeResolver
@@ -25,12 +29,13 @@ func NewService(db Transactor, models ModelTypeResolver, registry *Registry) *Se
 	return &Service{db: db, models: models, registry: registry}
 }
 
+// Get returns the admin view of a model's specification.
 func (s *Service) Get(ctx context.Context, modelID int64) (Spec, error) {
-	code, spec, err := s.resolve(ctx, modelID)
+	code, component, err := s.findComponent(ctx, modelID)
 	if err != nil {
 		return Spec{}, err
 	}
-	data, err := spec.Get(ctx, modelID)
+	data, err := component.Get(ctx, modelID)
 	if err != nil {
 		return Spec{}, err
 	}
@@ -39,54 +44,65 @@ func (s *Service) Get(ctx context.Context, modelID int64) (Spec, error) {
 
 // GetPublic returns the storefront view, without inactive lookup values.
 func (s *Service) GetPublic(ctx context.Context, modelID int64) (Spec, error) {
-	code, spec, err := s.resolve(ctx, modelID)
+	code, component, err := s.findComponent(ctx, modelID)
 	if err != nil {
 		return Spec{}, err
 	}
-	data, err := spec.GetPublic(ctx, modelID)
+	data, err := component.GetPublic(ctx, modelID)
 	if err != nil {
 		return Spec{}, err
 	}
 	return Spec{ComponentType: code, Data: data}, nil
 }
 
-func (s *Service) ComponentTypeCode(ctx context.Context, modelID int64) (string, error) {
-	return s.models.ComponentTypeCode(ctx, modelID)
+// ComponentFor returns the Component that handles the model's component type.
+// The handler uses it to decode the request body with the right decoder.
+func (s *Service) ComponentFor(ctx context.Context, modelID int64) (Component, error) {
+	_, component, err := s.findComponent(ctx, modelID)
+	return component, err
 }
 
+// Upsert creates or partially updates a model's specification in one transaction.
 func (s *Service) Upsert(ctx context.Context, modelID int64, input Input) (Spec, error) {
-	var out Spec
-	err := s.db.InTx(ctx, func(ctx context.Context) error {
-		code, spec, err := s.resolve(ctx, modelID)
+	var result Spec
+	err := s.db.RunInTransaction(ctx, func(ctx context.Context) error {
+		code, component, err := s.findComponent(ctx, modelID)
 		if err != nil {
 			return err
 		}
 		if input == nil || input.ComponentTypeCode() != code {
 			return apperror.Invalid("specification input does not match the model's component type")
 		}
-		data, err := spec.Upsert(ctx, modelID, input)
+		data, err := component.Upsert(ctx, modelID, input)
 		if err != nil {
 			return err
 		}
-		out = Spec{ComponentType: code, Data: data}
+		result = Spec{ComponentType: code, Data: data}
 		return nil
 	})
-	return out, err
+	if err != nil {
+		return Spec{}, err
+	}
+	return result, nil
 }
 
 func (s *Service) Delete(ctx context.Context, modelID int64) error {
-	_, spec, err := s.resolve(ctx, modelID)
+	_, component, err := s.findComponent(ctx, modelID)
 	if err != nil {
 		return err
 	}
-	return spec.Delete(ctx, modelID)
+	return component.Delete(ctx, modelID)
 }
 
-func (s *Service) resolve(ctx context.Context, modelID int64) (string, ComponentSpec, error) {
+// findComponent returns the model's component type code and its Component.
+func (s *Service) findComponent(ctx context.Context, modelID int64) (string, Component, error) {
 	code, err := s.models.ComponentTypeCode(ctx, modelID)
 	if err != nil {
 		return "", nil, err
 	}
-	registration, err := s.registry.Get(code)
-	return code, registration.Service, err
+	component, err := s.registry.Get(code)
+	if err != nil {
+		return "", nil, err
+	}
+	return code, component, nil
 }

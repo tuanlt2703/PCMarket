@@ -9,14 +9,20 @@ import (
 	"product-service/internal/platform/optional"
 )
 
+// ItemRepository is the storage used by Service. *Repository implements it
+// with PostgreSQL; tests use an in-memory stub.
 type ItemRepository interface {
-	List(context.Context, Table, Filter, *httpx.Page) ([]Item, int64, error)
-	Get(context.Context, Table, int64) (Item, error)
-	Create(context.Context, Table, Input) (Item, error)
-	Update(context.Context, Table, int64, UpdateInput) (Item, error)
-	Delete(context.Context, Table, int64) error
+	List(ctx context.Context, table Table, filter Filter, page httpx.Page) ([]Item, int64, error)
+	ListActive(ctx context.Context, table Table) ([]Item, error)
+	Get(ctx context.Context, table Table, id int64) (Item, error)
+	Create(ctx context.Context, table Table, input CreateInput) (Item, error)
+	Update(ctx context.Context, table Table, id int64, input UpdateInput) (Item, error)
+	Delete(ctx context.Context, table Table, id int64) error
 }
 
+// Service handles every lookup type. Each method takes the URL slug
+// (e.g. "cpu-sockets"), finds the matching table in the registry and then
+// calls the repository.
 type Service struct {
 	repo     ItemRepository
 	registry *Registry
@@ -26,87 +32,81 @@ func NewService(repo ItemRepository, registry *Registry) *Service {
 	return &Service{repo: repo, registry: registry}
 }
 
-func (s *Service) ListTypes() []string { return s.registry.Slugs() }
-
-func (s *Service) table(slug string) (Table, error) {
-	t, ok := s.registry.Get(slug)
-	if !ok {
-		return Table{}, apperror.NotFound("unknown lookup type " + slug)
-	}
-	return t, nil
+// ListTypes returns the slugs of every lookup type, sorted.
+func (s *Service) ListTypes() []string {
+	return s.registry.Slugs()
 }
 
-func (s *Service) List(ctx context.Context, slug string, f Filter, p httpx.Page) ([]Item, int64, error) {
-	t, err := s.table(slug)
+func (s *Service) findTable(slug string) (Table, error) {
+	table, found := s.registry.Get(slug)
+	if !found {
+		return Table{}, apperror.NotFound("unknown lookup type " + slug)
+	}
+	return table, nil
+}
+
+func (s *Service) List(ctx context.Context, slug string, filter Filter, page httpx.Page) ([]Item, int64, error) {
+	table, err := s.findTable(slug)
 	if err != nil {
 		return nil, 0, err
 	}
-	f.Query = strings.TrimSpace(f.Query)
-	return s.repo.List(ctx, t, f, &p)
+	filter.Query = strings.TrimSpace(filter.Query)
+	return s.repo.List(ctx, table, filter, page)
 }
 
-// ListActive returns all active rows without pagination; reference tables are small.
+// ListActive returns all active rows of one lookup type, for the storefront.
 func (s *Service) ListActive(ctx context.Context, slug string) ([]Item, error) {
-	t, err := s.table(slug)
+	table, err := s.findTable(slug)
 	if err != nil {
 		return nil, err
 	}
-	active := true
-	items, _, err := s.repo.List(ctx, t, Filter{IsActive: &active}, nil)
-	return items, err
+	return s.repo.ListActive(ctx, table)
 }
 
 func (s *Service) Get(ctx context.Context, slug string, id int64) (Item, error) {
-	t, err := s.table(slug)
+	table, err := s.findTable(slug)
 	if err != nil {
 		return Item{}, err
 	}
-	return s.repo.Get(ctx, t, id)
+	return s.repo.Get(ctx, table, id)
 }
 
-func (s *Service) Create(ctx context.Context, slug string, in Input) (Item, error) {
-	t, err := s.table(slug)
+func (s *Service) Create(ctx context.Context, slug string, input CreateInput) (Item, error) {
+	table, err := s.findTable(slug)
 	if err != nil {
 		return Item{}, err
 	}
-	if err := normalize(&in); err != nil {
-		return Item{}, err
+	input.Code = strings.TrimSpace(input.Code)
+	input.Name = strings.TrimSpace(input.Name)
+	if input.Code == "" || input.Name == "" {
+		return Item{}, apperror.Invalid("code and name must not be blank")
 	}
-	return s.repo.Create(ctx, t, in)
+	return s.repo.Create(ctx, table, input)
 }
 
 // Update changes only the fields present in the input.
-func (s *Service) Update(ctx context.Context, slug string, id int64, in UpdateInput) (Item, error) {
-	t, err := s.table(slug)
+func (s *Service) Update(ctx context.Context, slug string, id int64, input UpdateInput) (Item, error) {
+	table, err := s.findTable(slug)
 	if err != nil {
 		return Item{}, err
 	}
-	if optional.Blank(in.Code) || optional.Blank(in.Name) {
+	if optional.IsBlank(input.Code) || optional.IsBlank(input.Name) {
 		return Item{}, apperror.Invalid("code and name must not be blank")
 	}
-	if in.IsActive.IsNull() {
+	if input.IsActive.IsNull() {
 		return Item{}, apperror.Invalid("is_active must not be null")
 	}
-	in.Code = optional.TrimSpace(in.Code)
-	in.Name = optional.TrimSpace(in.Name)
-	return s.repo.Update(ctx, t, id, in)
+	input.Code = optional.TrimSpace(input.Code)
+	input.Name = optional.TrimSpace(input.Name)
+	return s.repo.Update(ctx, table, id, input)
 }
 
-// Delete removes a row. Rows still referenced by other data return a conflict;
-// deactivate them via is_active instead.
+// Delete removes a row. A row still used by other data returns a conflict;
+// set is_active = false instead.
 func (s *Service) Delete(ctx context.Context, slug string, id int64) error {
-	t, err := s.table(slug)
+	table, err := s.findTable(slug)
 	if err != nil {
 		return err
 	}
-	return s.repo.Delete(ctx, t, id)
-}
-
-func normalize(in *Input) error {
-	in.Code = strings.TrimSpace(in.Code)
-	in.Name = strings.TrimSpace(in.Name)
-	if in.Code == "" || in.Name == "" {
-		return apperror.Invalid("code and name must not be blank")
-	}
-	return nil
+	return s.repo.Delete(ctx, table, id)
 }

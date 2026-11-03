@@ -17,11 +17,11 @@ func NewProductModelHandler(svc *ProductModelService) *ProductModelHandler {
 }
 
 func (h *ProductModelHandler) List(c *gin.Context) {
-	typeID, ok := httpx.QueryInt64(c, "component_type_id")
+	typeID, ok := httpx.QueryID(c, "component_type_id")
 	if !ok {
 		return
 	}
-	mfID, ok := httpx.QueryInt64(c, "manufacturer_id")
+	manufacturerID, ok := httpx.QueryID(c, "manufacturer_id")
 	if !ok {
 		return
 	}
@@ -31,7 +31,7 @@ func (h *ProductModelHandler) List(c *gin.Context) {
 	}
 	page := httpx.ParsePage(c)
 	items, total, err := h.svc.List(c.Request.Context(), ProductModelFilter{
-		Query: c.Query("q"), ComponentTypeID: typeID, ManufacturerID: mfID, IsActive: active,
+		Query: c.Query("q"), ComponentTypeID: typeID, ManufacturerID: manufacturerID, IsActive: active,
 	}, page)
 	if err != nil {
 		httpx.WriteError(c, err)
@@ -54,11 +54,11 @@ func (h *ProductModelHandler) Get(c *gin.Context) {
 }
 
 func (h *ProductModelHandler) Create(c *gin.Context) {
-	var in CreateProductModelRequest
-	if !httpx.BindJSON(c, &in) {
+	var request CreateProductModelRequest
+	if !httpx.BindJSON(c, &request) {
 		return
 	}
-	m, err := h.svc.Create(c.Request.Context(), in.Input())
+	m, err := h.svc.Create(c.Request.Context(), request.Input())
 	if err != nil {
 		httpx.WriteError(c, err)
 		return
@@ -71,11 +71,11 @@ func (h *ProductModelHandler) Update(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var in UpdateProductModelRequest
-	if !httpx.BindJSON(c, &in) {
+	var request UpdateProductModelRequest
+	if !httpx.BindJSON(c, &request) {
 		return
 	}
-	m, err := h.svc.Update(c.Request.Context(), id, in.Input())
+	m, err := h.svc.Update(c.Request.Context(), id, request.Input())
 	if err != nil {
 		httpx.WriteError(c, err)
 		return

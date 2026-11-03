@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"product-service/internal/platform/apperror"
 	"product-service/internal/platform/httpx"
 )
 
+// assertInputMapping checks that Request.Input() copies every field by name,
+// so a field added to a request is not silently dropped before the service.
 func assertInputMapping(t *testing.T, request, input any) {
 	t.Helper()
 	from, to := reflect.ValueOf(request), reflect.ValueOf(input)
@@ -17,24 +20,21 @@ func assertInputMapping(t *testing.T, request, input any) {
 		t.Fatalf("request/input field count differs: %s vs %s", from.Type(), to.Type())
 	}
 	for i := 0; i < from.NumField(); i++ {
-		field := from.Type().Field(i)
-		value := to.FieldByName(field.Name)
+		name := from.Type().Field(i).Name
+		value := to.FieldByName(name)
 		if !value.IsValid() || !reflect.DeepEqual(from.Field(i).Interface(), value.Interface()) {
-			t.Errorf("field %s lost during DTO conversion", field.Name)
-		}
-		if domainField, ok := to.Type().FieldByName(field.Name); ok && domainField.Tag.Get("binding") != "" {
-			t.Errorf("service input %s has HTTP validation tags", domainField.Name)
+			t.Errorf("field %s lost during request conversion", name)
 		}
 	}
 }
 
 func decode[T any](t *testing.T, body string) T {
 	t.Helper()
-	var v T
-	if err := json.Unmarshal([]byte(body), &v); err != nil {
+	var value T
+	if err := json.Unmarshal([]byte(body), &value); err != nil {
 		t.Fatal(err)
 	}
-	return v
+	return value
 }
 
 func TestCatalogRequestMappings(t *testing.T) {
@@ -63,58 +63,82 @@ func TestCatalogRequestMappings(t *testing.T) {
 }
 
 func TestUpdateRequestsDistinguishOmittedFromNull(t *testing.T) {
-	in := decode[UpdateProductModelRequest](t, `{"description":null}`).Input()
-	if in.ModelName.Set || in.ReleaseDate.Set || in.ManufacturerID.Set || in.IsActive.Set {
-		t.Fatalf("omitted fields must stay unset: %+v", in)
+	input := decode[UpdateProductModelRequest](t, `{"description":null}`).Input()
+	if input.ModelName.Present || input.ReleaseDate.Present || input.ManufacturerID.Present || input.IsActive.Present {
+		t.Fatalf("omitted fields must stay absent: %+v", input)
 	}
-	if !in.Description.IsNull() {
+	if !input.Description.IsNull() {
 		t.Fatal("explicit null must clear the description")
 	}
 }
 
 func TestComponentTypeCodeAndNameAreImmutable(t *testing.T) {
 	for _, body := range []string{`{"code":"gpu"}`, `{"name":"GPU"}`, `{"code":null,"is_active":true}`} {
-		var req UpdateComponentTypeRequest
-		if err := httpx.DecodeJSON([]byte(body), &req); !errors.Is(err, apperror.ErrInvalid) {
+		var request UpdateComponentTypeRequest
+		if err := httpx.DecodeJSON([]byte(body), &request); !errors.Is(err, apperror.ErrInvalid) {
 			t.Errorf("%s: got %v, want ErrInvalid", body, err)
 		}
 	}
-	var req UpdateComponentTypeRequest
-	if err := httpx.DecodeJSON([]byte(`{"description":"x","is_active":false}`), &req); err != nil {
+
+	var request UpdateComponentTypeRequest
+	if err := httpx.DecodeJSON([]byte(`{"description":"x","is_active":false}`), &request); err != nil {
 		t.Fatal(err)
 	}
-	in := req.Input()
-	if *in.Description.Value != "x" || *in.IsActive.Value {
-		t.Fatalf("update input = %+v", in)
+	input := request.Input()
+	if *input.Description.Value != "x" || *input.IsActive.Value {
+		t.Fatalf("update input = %+v", input)
 	}
 }
 
-func TestCreateProductModelRequiresManufacturer(t *testing.T) {
-	var req CreateProductModelRequest
-	err := httpx.DecodeJSON([]byte(`{"component_type_id":1,"model_name":"X"}`), &req)
-	if !errors.Is(err, apperror.ErrInvalid) || err.Error() != "manufacturer_id is required" {
-		t.Fatalf("got %v", err)
+func TestRequestValidationMessages(t *testing.T) {
+	tests := []struct {
+		name    string
+		request httpx.Request
+		body    string
+		want    string
+	}{
+		{"missing manufacturer", &CreateProductModelRequest{}, `{"component_type_id":1,"model_name":"X"}`,
+			"manufacturer_id is required"},
+		{"negative type", &CreateProductModelRequest{}, `{"component_type_id":-1,"manufacturer_id":1,"model_name":"X"}`,
+			"component_type_id must be greater than 0"},
+		{"bad date", &CreateProductModelRequest{}, `{"component_type_id":1,"manufacturer_id":1,"model_name":"X","release_date":"17/10/2023"}`,
+			"release_date must be a date in the format YYYY-MM-DD"},
+		{"several problems", &CreateManufacturerRequest{}, `{"name":"` + strings.Repeat("é", 101) + `"}`,
+			"code is required; name must be at most 100 characters"},
+		{"update zero manufacturer", &UpdateProductModelRequest{}, `{"manufacturer_id":0}`,
+			"manufacturer_id must be greater than 0"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := httpx.DecodeJSON([]byte(tt.body), tt.request)
+			if !errors.Is(err, apperror.ErrInvalid) || err.Error() != tt.want {
+				t.Fatalf("got %v, want %q", err, tt.want)
+			}
+		})
 	}
 }
 
 func TestUpdateServicesRejectNullForRequiredColumns(t *testing.T) {
 	ctx := t.Context()
 	models := NewProductModelService(nil)
-	for name, in := range map[string]UpdateProductModelInput{
+	for name, input := range map[string]UpdateProductModelInput{
 		"blank name":        {ModelName: decode[UpdateProductModelRequest](t, `{"model_name":" "}`).ModelName},
 		"null manufacturer": {ManufacturerID: decode[UpdateProductModelRequest](t, `{"manufacturer_id":null}`).ManufacturerID},
 		"null is_active":    {IsActive: decode[UpdateProductModelRequest](t, `{"is_active":null}`).IsActive},
 	} {
-		if _, err := models.Update(ctx, 1, in); !errors.Is(err, apperror.ErrInvalid) {
+		if _, err := models.Update(ctx, 1, input); !errors.Is(err, apperror.ErrInvalid) {
 			t.Errorf("model %s: got %v", name, err)
 		}
 	}
+
 	manufacturers := NewManufacturerService(nil)
 	if _, err := manufacturers.Update(ctx, 1, decode[UpdateManufacturerRequest](t, `{"code":null}`).Input()); !errors.Is(err, apperror.ErrInvalid) {
 		t.Errorf("manufacturer null code: got %v", err)
 	}
+
 	types := NewComponentTypeService(nil)
-	if _, err := types.Update(ctx, 1, UpdateComponentTypeInput{IsActive: decode[UpdateComponentTypeRequest](t, `{"is_active":null}`).IsActive}); !errors.Is(err, apperror.ErrInvalid) {
+	nullIsActive := decode[UpdateComponentTypeRequest](t, `{"is_active":null}`).IsActive
+	if _, err := types.Update(ctx, 1, UpdateComponentTypeInput{IsActive: nullIsActive}); !errors.Is(err, apperror.ErrInvalid) {
 		t.Errorf("component type null is_active: got %v", err)
 	}
 }

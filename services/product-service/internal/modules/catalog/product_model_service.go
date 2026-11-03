@@ -17,39 +17,39 @@ func NewProductModelService(repo *ProductModelRepository) *ProductModelService {
 	return &ProductModelService{repo: repo}
 }
 
-func (s *ProductModelService) List(ctx context.Context, f ProductModelFilter, p httpx.Page) ([]ProductModel, int64, error) {
-	f.Query = strings.TrimSpace(f.Query)
-	return s.repo.List(ctx, f, p)
+func (s *ProductModelService) List(ctx context.Context, filter ProductModelFilter, page httpx.Page) ([]ProductModel, int64, error) {
+	filter.Query = strings.TrimSpace(filter.Query)
+	return s.repo.List(ctx, filter, page)
 }
 
 func (s *ProductModelService) Get(ctx context.Context, id int64) (ProductModel, error) {
 	return s.repo.Get(ctx, id)
 }
 
-func (s *ProductModelService) Create(ctx context.Context, in CreateProductModelInput) (ProductModel, error) {
-	in.ModelName = strings.TrimSpace(in.ModelName)
-	if in.ModelName == "" {
+func (s *ProductModelService) Create(ctx context.Context, input CreateProductModelInput) (ProductModel, error) {
+	input.ModelName = strings.TrimSpace(input.ModelName)
+	if input.ModelName == "" {
 		return ProductModel{}, apperror.Invalid("model_name must not be blank")
 	}
-	id, err := s.repo.Create(ctx, in)
+	id, err := s.repo.Create(ctx, input)
 	if err != nil {
 		return ProductModel{}, err
 	}
 	return s.repo.Get(ctx, id)
 }
 
-func (s *ProductModelService) Update(ctx context.Context, id int64, in UpdateProductModelInput) (ProductModel, error) {
-	if optional.Blank(in.ModelName) {
+func (s *ProductModelService) Update(ctx context.Context, id int64, input UpdateProductModelInput) (ProductModel, error) {
+	if optional.IsBlank(input.ModelName) {
 		return ProductModel{}, apperror.Invalid("model_name must not be blank")
 	}
-	if in.ManufacturerID.IsNull() {
+	if input.ManufacturerID.IsNull() {
 		return ProductModel{}, apperror.Invalid("manufacturer_id must not be null")
 	}
-	if in.IsActive.IsNull() {
+	if input.IsActive.IsNull() {
 		return ProductModel{}, apperror.Invalid("is_active must not be null")
 	}
-	in.ModelName = optional.TrimSpace(in.ModelName)
-	if err := s.repo.Update(ctx, id, in); err != nil {
+	input.ModelName = optional.TrimSpace(input.ModelName)
+	if err := s.repo.Update(ctx, id, input); err != nil {
 		return ProductModel{}, err
 	}
 	return s.repo.Get(ctx, id)

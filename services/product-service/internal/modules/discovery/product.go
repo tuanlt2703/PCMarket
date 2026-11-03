@@ -14,6 +14,8 @@ type ProductSummary struct {
 	Offers        []Offer `json:"offers"`
 }
 
+// ProductDetail embeds ProductSummary: its fields appear directly in
+// ProductDetail and are written at the top level of the JSON, not nested.
 type ProductDetail struct {
 	ProductSummary
 	Description *string `json:"description"`

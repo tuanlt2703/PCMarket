@@ -16,30 +16,30 @@ func NewComponentTypeService(repo *ComponentTypeRepository) *ComponentTypeServic
 	return &ComponentTypeService{repo: repo}
 }
 
-func (s *ComponentTypeService) List(ctx context.Context, f ComponentTypeFilter, p httpx.Page) ([]ComponentType, int64, error) {
-	f.Query = strings.TrimSpace(f.Query)
-	return s.repo.List(ctx, f, p)
+func (s *ComponentTypeService) List(ctx context.Context, filter ComponentTypeFilter, page httpx.Page) ([]ComponentType, int64, error) {
+	filter.Query = strings.TrimSpace(filter.Query)
+	return s.repo.List(ctx, filter, page)
 }
 
 func (s *ComponentTypeService) Get(ctx context.Context, id int64) (ComponentType, error) {
 	return s.repo.Get(ctx, id)
 }
 
-func (s *ComponentTypeService) Create(ctx context.Context, in CreateComponentTypeInput) (ComponentType, error) {
-	in.Code = strings.TrimSpace(in.Code)
-	in.Name = strings.TrimSpace(in.Name)
-	if in.Code == "" || in.Name == "" {
+func (s *ComponentTypeService) Create(ctx context.Context, input CreateComponentTypeInput) (ComponentType, error) {
+	input.Code = strings.TrimSpace(input.Code)
+	input.Name = strings.TrimSpace(input.Name)
+	if input.Code == "" || input.Name == "" {
 		return ComponentType{}, apperror.Invalid("code and name must not be blank")
 	}
-	return s.repo.Create(ctx, in)
+	return s.repo.Create(ctx, input)
 }
 
 // Update changes only the fields present in the input; code and name are fixed.
-func (s *ComponentTypeService) Update(ctx context.Context, id int64, in UpdateComponentTypeInput) (ComponentType, error) {
-	if in.IsActive.IsNull() {
+func (s *ComponentTypeService) Update(ctx context.Context, id int64, input UpdateComponentTypeInput) (ComponentType, error) {
+	if input.IsActive.IsNull() {
 		return ComponentType{}, apperror.Invalid("is_active must not be null")
 	}
-	return s.repo.Update(ctx, id, in)
+	return s.repo.Update(ctx, id, input)
 }
 
 // Delete fails with a conflict while models still use the type; deactivate it instead.

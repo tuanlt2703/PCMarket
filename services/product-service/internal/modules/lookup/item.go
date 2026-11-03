@@ -6,16 +6,18 @@ import (
 	"product-service/internal/platform/optional"
 )
 
-// Table is a lookup table. All lookup tables share the shape
+// Table describes one lookup table, e.g. cpu_sockets.
+// Every lookup table has the same columns:
 // (id, code, name, description, is_active, created_at, updated_at).
-// Names come only from the registry, never from user input.
+// Tables only come from the registry, never from user input.
 type Table struct {
-	// Name is the SQL table name.
+	// Name is the SQL table name, e.g. "cpu_sockets".
 	Name string
-	// Label is a human-readable singular name used in error messages.
+	// Label is a human-readable singular name used in error messages, e.g. "cpu sockets".
 	Label string
 }
 
+// Item is one row of a lookup table.
 type Item struct {
 	ID          int64     `json:"id"`
 	Code        string    `json:"code"`
@@ -26,11 +28,11 @@ type Item struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
-type Input struct {
+type CreateInput struct {
 	Code        string
 	Name        string
 	Description *string
-	// IsActive defaults to true when omitted.
+	// IsActive defaults to true when nil.
 	IsActive *bool
 }
 
@@ -42,6 +44,7 @@ type UpdateInput struct {
 	IsActive    optional.Field[bool]
 }
 
+// Filter narrows an admin list. Empty Query and nil IsActive mean "no filter".
 type Filter struct {
 	Query    string
 	IsActive *bool

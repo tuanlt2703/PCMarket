@@ -44,11 +44,11 @@ func (h *ComponentTypeHandler) Get(c *gin.Context) {
 }
 
 func (h *ComponentTypeHandler) Create(c *gin.Context) {
-	var in CreateComponentTypeRequest
-	if !httpx.BindJSON(c, &in) {
+	var request CreateComponentTypeRequest
+	if !httpx.BindJSON(c, &request) {
 		return
 	}
-	ct, err := h.svc.Create(c.Request.Context(), in.Input())
+	ct, err := h.svc.Create(c.Request.Context(), request.Input())
 	if err != nil {
 		httpx.WriteError(c, err)
 		return
@@ -61,11 +61,11 @@ func (h *ComponentTypeHandler) Update(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var in UpdateComponentTypeRequest
-	if !httpx.BindJSON(c, &in) {
+	var request UpdateComponentTypeRequest
+	if !httpx.BindJSON(c, &request) {
 		return
 	}
-	ct, err := h.svc.Update(c.Request.Context(), id, in.Input())
+	ct, err := h.svc.Update(c.Request.Context(), id, request.Input())
 	if err != nil {
 		httpx.WriteError(c, err)
 		return

@@ -1,12 +1,11 @@
 package cpu
 
-import (
-	"time"
+import "time"
 
-	"product-service/internal/platform/optional"
-)
-
-// Spec mirrors cpu_specs plus its junction tables.
+// Spec is one row of cpu_specs plus the ids from its two junction tables.
+//
+// Attributes is embedded: its fields can be used as spec.CoreCount, and the
+// JSON output is flat ({"model_id":1,"core_count":8,...}), not nested.
 type Spec struct {
 	ModelID int64 `json:"model_id"`
 	Attributes
@@ -14,7 +13,8 @@ type Spec struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// Attributes are the writable CPU attributes; foreign keys reference lookup tables.
+// Attributes are the writable CPU columns. A nil pointer is NULL in the
+// database. Fields ending in ID reference a lookup table.
 type Attributes struct {
 	ArchitectureID           *int64   `json:"architecture_id"`
 	CPUSeriesID              *int64   `json:"cpu_series_id"`
@@ -36,61 +36,8 @@ type Attributes struct {
 	CoolerIncluded           *bool    `json:"cooler_included"`
 	MaxOperatingTemperatureC *float64 `json:"max_operating_temperature_c"`
 
+	// Stored in the junction tables cpu_supported_memory_types and
+	// cpu_supported_instruction_sets.
 	MemoryTypeIDs     []int64 `json:"memory_type_ids"`
 	InstructionSetIDs []int64 `json:"instruction_set_ids"`
-}
-
-// Patch is a partial CPU specification write: omitted fields keep their stored
-// value (or NULL on first write) and an explicit null clears them.
-type Patch struct {
-	ArchitectureID           optional.Field[int64]
-	CPUSeriesID              optional.Field[int64]
-	SocketID                 optional.Field[int64]
-	CoreCount                optional.Field[int32]
-	ThreadCount              optional.Field[int32]
-	BaseClockMHz             optional.Field[float64]
-	MaxBoostClockMHz         optional.Field[float64]
-	L1CacheKB                optional.Field[float64]
-	L2CacheMB                optional.Field[float64]
-	L3CacheMB                optional.Field[float64]
-	TDPW                     optional.Field[float64]
-	HasIntegratedGraphics    optional.Field[bool]
-	IntegratedGPUChipsetID   optional.Field[int64]
-	MaxMemoryCapacityGB      optional.Field[float64]
-	MemoryChannelCount       optional.Field[int32]
-	PCIeGenerationID         optional.Field[int64]
-	UnlockedMultiplier       optional.Field[bool]
-	CoolerIncluded           optional.Field[bool]
-	MaxOperatingTemperatureC optional.Field[float64]
-
-	MemoryTypeIDs     optional.Field[[]int64]
-	InstructionSetIDs optional.Field[[]int64]
-}
-
-func (Patch) ComponentTypeCode() string { return ComponentTypeCode }
-
-// Apply returns a copy of a with the present patch fields applied.
-func (p Patch) Apply(a Attributes) Attributes {
-	p.ArchitectureID.ApplyTo(&a.ArchitectureID)
-	p.CPUSeriesID.ApplyTo(&a.CPUSeriesID)
-	p.SocketID.ApplyTo(&a.SocketID)
-	p.CoreCount.ApplyTo(&a.CoreCount)
-	p.ThreadCount.ApplyTo(&a.ThreadCount)
-	p.BaseClockMHz.ApplyTo(&a.BaseClockMHz)
-	p.MaxBoostClockMHz.ApplyTo(&a.MaxBoostClockMHz)
-	p.L1CacheKB.ApplyTo(&a.L1CacheKB)
-	p.L2CacheMB.ApplyTo(&a.L2CacheMB)
-	p.L3CacheMB.ApplyTo(&a.L3CacheMB)
-	p.TDPW.ApplyTo(&a.TDPW)
-	p.HasIntegratedGraphics.ApplyTo(&a.HasIntegratedGraphics)
-	p.IntegratedGPUChipsetID.ApplyTo(&a.IntegratedGPUChipsetID)
-	p.MaxMemoryCapacityGB.ApplyTo(&a.MaxMemoryCapacityGB)
-	p.MemoryChannelCount.ApplyTo(&a.MemoryChannelCount)
-	p.PCIeGenerationID.ApplyTo(&a.PCIeGenerationID)
-	p.UnlockedMultiplier.ApplyTo(&a.UnlockedMultiplier)
-	p.CoolerIncluded.ApplyTo(&a.CoolerIncluded)
-	p.MaxOperatingTemperatureC.ApplyTo(&a.MaxOperatingTemperatureC)
-	p.MemoryTypeIDs.ApplyValue(&a.MemoryTypeIDs)
-	p.InstructionSetIDs.ApplyValue(&a.InstructionSetIDs)
-	return a
 }

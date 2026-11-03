@@ -6,53 +6,65 @@ import (
 )
 
 func TestFieldDistinguishesOmittedNullAndValue(t *testing.T) {
-	var req struct {
+	var request struct {
 		A Field[string]  `json:"a"`
 		B Field[string]  `json:"b"`
 		C Field[string]  `json:"c"`
 		D Field[[]int64] `json:"d"`
 	}
-	if err := json.Unmarshal([]byte(`{"b":null,"c":"x","d":[]}`), &req); err != nil {
+	if err := json.Unmarshal([]byte(`{"b":null,"c":"x","d":[]}`), &request); err != nil {
 		t.Fatal(err)
 	}
-	if req.A.Set {
-		t.Error("omitted field must not be set")
+
+	if request.A.Present {
+		t.Error("omitted field must not be present")
 	}
-	if !req.B.IsNull() {
-		t.Error("explicit null must be set with nil value")
+	if !request.B.IsNull() {
+		t.Error("explicit null must be present with a nil value")
 	}
-	if !req.C.Set || *req.C.Value != "x" {
-		t.Errorf("value = %+v", req.C)
+	if !request.C.Present || *request.C.Value != "x" {
+		t.Errorf("value = %+v", request.C)
 	}
-	if !req.D.Set || req.D.Value == nil || len(*req.D.Value) != 0 {
-		t.Errorf("empty array = %+v", req.D)
+	if !request.D.Present || request.D.Value == nil || len(*request.D.Value) != 0 {
+		t.Errorf("empty array = %+v", request.D)
 	}
 }
 
-func TestApply(t *testing.T) {
-	keep, clear, set := "keep", "clear", "old"
-	a, b, c := &keep, &clear, &set
-	Field[string]{}.ApplyTo(&a)
-	Null[string]().ApplyTo(&b)
-	Of("new").ApplyTo(&c)
-	if a == nil || *a != "keep" || b != nil || *c != "new" {
-		t.Fatalf("a=%v b=%v c=%v", a, b, *c)
+func TestApplyToPointer(t *testing.T) {
+	keep, clear, replace := "keep", "clear", "old"
+	a, b, c := &keep, &clear, &replace
+
+	Field[string]{}.ApplyToPointer(&a)
+	Null[string]().ApplyToPointer(&b)
+	Of("new").ApplyToPointer(&c)
+
+	if a == nil || *a != "keep" {
+		t.Errorf("omitted field changed the value: %v", a)
 	}
+	if b != nil {
+		t.Errorf("null field must clear the value: %v", *b)
+	}
+	if c == nil || *c != "new" {
+		t.Errorf("present field must replace the value: %v", c)
+	}
+}
+
+func TestApplyToValue(t *testing.T) {
 	ids := []int64{1}
-	Null[[]int64]().ApplyValue(&ids)
+	Null[[]int64]().ApplyToValue(&ids)
 	if ids != nil {
 		t.Fatal("null must reset a slice")
 	}
 }
 
-func TestBlankAndTrim(t *testing.T) {
-	if Blank(Field[string]{}) {
+func TestIsBlankAndTrimSpace(t *testing.T) {
+	if IsBlank(Field[string]{}) {
 		t.Error("omitted is not blank")
 	}
-	if !Blank(Null[string]()) || !Blank(Of("  ")) {
+	if !IsBlank(Null[string]()) || !IsBlank(Of("  ")) {
 		t.Error("null and whitespace are blank")
 	}
-	if v := TrimSpace(Of(" x ")); *v.Value != "x" {
-		t.Errorf("trim = %q", *v.Value)
+	if trimmed := TrimSpace(Of(" x ")); *trimmed.Value != "x" {
+		t.Errorf("trim = %q", *trimmed.Value)
 	}
 }

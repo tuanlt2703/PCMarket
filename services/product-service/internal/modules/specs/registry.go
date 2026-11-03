@@ -1,55 +1,39 @@
 package specs
 
 import (
-	"context"
 	"fmt"
 
 	"product-service/internal/platform/apperror"
 )
 
-type Input interface {
-	ComponentTypeCode() string
-}
-
-type ComponentSpec interface {
-	ComponentTypeCode() string
-	Get(ctx context.Context, modelID int64) (any, error)
-	// GetPublic is the storefront view; it must not expose inactive lookup values.
-	GetPublic(ctx context.Context, modelID int64) (any, error)
-	// Upsert applies a partial write: fields absent from input keep their stored value.
-	Upsert(ctx context.Context, modelID int64, input Input) (any, error)
-	Delete(ctx context.Context, modelID int64) error
-}
-
-// Decode runs at the HTTP boundary; services only receive typed inputs.
-type Registration struct {
-	Service ComponentSpec
-	Decode  func(body []byte) (Input, error)
-}
-
+// Registry maps a component type code ("cpu") to its Component.
 type Registry struct {
-	byCode map[string]Registration
+	componentsByCode map[string]Component
 }
 
-func NewRegistry(specs ...Registration) *Registry {
-	r := &Registry{byCode: make(map[string]Registration, len(specs))}
-	for _, s := range specs {
-		if s.Service == nil || s.Decode == nil {
-			panic("specs: service and request decoder are required")
+// NewRegistry panics on a nil or duplicate component: both are programming
+// errors that must stop the service at startup.
+func NewRegistry(components ...Component) *Registry {
+	registry := &Registry{componentsByCode: make(map[string]Component, len(components))}
+	for _, component := range components {
+		if component == nil {
+			panic("specs: nil component")
 		}
-		code := s.Service.ComponentTypeCode()
-		if _, dup := r.byCode[code]; dup {
+		code := component.ComponentTypeCode()
+		if _, exists := registry.componentsByCode[code]; exists {
 			panic(fmt.Sprintf("specs: duplicate component type %q", code))
 		}
-		r.byCode[code] = s
+		registry.componentsByCode[code] = component
 	}
-	return r
+	return registry
 }
 
-func (r *Registry) Get(code string) (Registration, error) {
-	s, ok := r.byCode[code]
-	if !ok {
-		return Registration{}, apperror.Invalid(fmt.Sprintf("specifications for component type %q are not supported", code))
+// Get returns the component for code, or an Invalid error when specifications
+// for that component type are not implemented yet.
+func (r *Registry) Get(code string) (Component, error) {
+	component, found := r.componentsByCode[code]
+	if !found {
+		return nil, apperror.Invalid(fmt.Sprintf("specifications for component type %q are not supported", code))
 	}
-	return s, nil
+	return component, nil
 }

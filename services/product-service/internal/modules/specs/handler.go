@@ -9,20 +9,19 @@ import (
 )
 
 type Handler struct {
-	svc      *Service
-	registry *Registry
+	svc *Service
 }
 
-func NewHandler(svc *Service, registry *Registry) *Handler {
-	return &Handler{svc: svc, registry: registry}
+func NewHandler(svc *Service) *Handler {
+	return &Handler{svc: svc}
 }
 
 func (h *Handler) Get(c *gin.Context) {
-	id, ok := httpx.ParamID(c, "id")
+	modelID, ok := httpx.ParamID(c, "id")
 	if !ok {
 		return
 	}
-	spec, err := h.svc.Get(c.Request.Context(), id)
+	spec, err := h.svc.Get(c.Request.Context(), modelID)
 	if err != nil {
 		httpx.WriteError(c, err)
 		return
@@ -30,8 +29,10 @@ func (h *Handler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, spec)
 }
 
+// Upsert handles PUT /models/:id/specs. The body format depends on the
+// model's component type, so the body is decoded only after the type is known.
 func (h *Handler) Upsert(c *gin.Context) {
-	id, ok := httpx.ParamID(c, "id")
+	modelID, ok := httpx.ParamID(c, "id")
 	if !ok {
 		return
 	}
@@ -40,22 +41,17 @@ func (h *Handler) Upsert(c *gin.Context) {
 		httpx.WriteError(c, err)
 		return
 	}
-	code, err := h.svc.ComponentTypeCode(c.Request.Context(), id)
+	component, err := h.svc.ComponentFor(c.Request.Context(), modelID)
 	if err != nil {
 		httpx.WriteError(c, err)
 		return
 	}
-	registration, err := h.registry.Get(code)
+	input, err := component.DecodeRequest(body)
 	if err != nil {
 		httpx.WriteError(c, err)
 		return
 	}
-	input, err := registration.Decode(body)
-	if err != nil {
-		httpx.WriteError(c, err)
-		return
-	}
-	spec, err := h.svc.Upsert(c.Request.Context(), id, input)
+	spec, err := h.svc.Upsert(c.Request.Context(), modelID, input)
 	if err != nil {
 		httpx.WriteError(c, err)
 		return
@@ -64,11 +60,11 @@ func (h *Handler) Upsert(c *gin.Context) {
 }
 
 func (h *Handler) Delete(c *gin.Context) {
-	id, ok := httpx.ParamID(c, "id")
+	modelID, ok := httpx.ParamID(c, "id")
 	if !ok {
 		return
 	}
-	if err := h.svc.Delete(c.Request.Context(), id); err != nil {
+	if err := h.svc.Delete(c.Request.Context(), modelID); err != nil {
 		httpx.WriteError(c, err)
 		return
 	}

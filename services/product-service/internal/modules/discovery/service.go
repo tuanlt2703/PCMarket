@@ -9,68 +9,73 @@ import (
 	"product-service/internal/platform/httpx"
 )
 
+// Service builds the storefront product views: catalog data from Repository,
+// plus specs and offers from the readers plugged in by internal/app.
 type Service struct {
-	repo   *QueryRepository
+	repo   *Repository
 	specs  SpecReader
 	offers OfferReader
 }
 
-func NewService(repo *QueryRepository, specs SpecReader, offers OfferReader) *Service {
+func NewService(repo *Repository, specs SpecReader, offers OfferReader) *Service {
 	return &Service{repo: repo, specs: specs, offers: offers}
 }
 
-func (s *Service) Search(ctx context.Context, f SearchFilter, p httpx.Page) ([]ProductSummary, int64, error) {
-	f.Query = strings.TrimSpace(f.Query)
-	if f.Sort != "" && f.Sort != SortName && f.Sort != SortNewest {
+func (s *Service) Search(ctx context.Context, filter SearchFilter, page httpx.Page) ([]ProductSummary, int64, error) {
+	filter.Query = strings.TrimSpace(filter.Query)
+	if filter.Sort != "" && filter.Sort != SortName && filter.Sort != SortNewest {
 		return nil, 0, apperror.Invalid("sort must be one of: name, newest")
 	}
 
-	items, total, err := s.repo.Search(ctx, f, p)
+	items, total, err := s.repo.Search(ctx, filter, page)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	ids := make([]int64, len(items))
-	for i, it := range items {
-		ids[i] = it.ID
+	// Load the offers of the whole page in one call.
+	modelIDs := make([]int64, len(items))
+	for i, item := range items {
+		modelIDs[i] = item.ID
 	}
-	offers, err := s.offers.OffersByModelIDs(ctx, ids)
+	offersByModel, err := s.offers.OffersByModelIDs(ctx, modelIDs)
 	if err != nil {
 		return nil, 0, err
 	}
 	for i := range items {
-		items[i].Offers = nonNil(offers[items[i].ID])
+		items[i].Offers = emptyIfNil(offersByModel[items[i].ID])
 	}
 	return items, total, nil
 }
 
 func (s *Service) Get(ctx context.Context, id int64) (ProductDetail, error) {
-	p, err := s.repo.Get(ctx, id)
+	product, err := s.repo.Get(ctx, id)
 	if err != nil {
-		return p, err
+		return ProductDetail{}, err
 	}
 
 	spec, err := s.specs.SpecFor(ctx, id)
 	switch {
 	case err == nil:
-		p.Specs = spec
+		product.Specs = spec
 	case errors.Is(err, apperror.ErrNotFound), errors.Is(err, apperror.ErrInvalid):
-		// No spec yet, or component type without spec support: show the product without specs.
+		// The model has no spec yet, or its component type has no spec
+		// support yet: show the product with "specs": null.
 	default:
-		return p, err
+		return ProductDetail{}, err
 	}
 
-	offers, err := s.offers.OffersByModelIDs(ctx, []int64{id})
+	offersByModel, err := s.offers.OffersByModelIDs(ctx, []int64{id})
 	if err != nil {
-		return p, err
+		return ProductDetail{}, err
 	}
-	p.Offers = nonNil(offers[id])
-	return p, nil
+	product.Offers = emptyIfNil(offersByModel[id])
+	return product, nil
 }
 
-func nonNil(o []Offer) []Offer {
-	if o == nil {
+// emptyIfNil makes the JSON output [] instead of null.
+func emptyIfNil(offers []Offer) []Offer {
+	if offers == nil {
 		return []Offer{}
 	}
-	return o
+	return offers
 }

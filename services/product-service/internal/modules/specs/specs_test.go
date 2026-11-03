@@ -15,42 +15,57 @@ import (
 	"product-service/internal/platform/apperror"
 )
 
-type modelResolver struct{ code string }
+// modelResolverStub says every model has the given component type code.
+type modelResolverStub struct{ code string }
 
+func (m modelResolverStub) ComponentTypeCode(context.Context, int64) (string, error) {
+	return m.code, nil
+}
+
+// gpuInput is an Input for another component type, to test the type check.
 type gpuInput struct{}
 
 func (gpuInput) ComponentTypeCode() string { return "gpu" }
 
-func (m modelResolver) ComponentTypeCode(context.Context, int64) (string, error) {
-	return m.code, nil
+type insideTransactionKey struct{}
+
+// transactorStub marks ctx so the component can check it runs inside the "transaction".
+type transactorStub struct {
+	calls     int
+	lastError error
 }
 
-type txContextKey struct{}
-
-type transactionStub struct {
-	calls int
-	err   error
-}
-
-func (tx *transactionStub) InTx(ctx context.Context, fn func(context.Context) error) error {
+func (tx *transactorStub) RunInTransaction(ctx context.Context, fn func(context.Context) error) error {
 	tx.calls++
-	tx.err = fn(context.WithValue(ctx, txContextKey{}, true))
-	return tx.err
+	tx.lastError = fn(context.WithValue(ctx, insideTransactionKey{}, true))
+	return tx.lastError
 }
 
+// cpuComponentStub uses the real CPU request decoder but records Upsert
+// calls instead of writing to a database.
 type cpuComponentStub struct {
-	inTransaction bool
-	input         specs.Input
-	err           error
+	upsertInTransaction bool
+	upsertInput         specs.Input
+	err                 error
 }
 
-func (*cpuComponentStub) ComponentTypeCode() string                     { return "cpu" }
+func (*cpuComponentStub) ComponentTypeCode() string { return cpu.ComponentTypeCode }
+
+func (*cpuComponentStub) DecodeRequest(body []byte) (specs.Input, error) {
+	patch, err := cpu.DecodeUpsertRequest(body)
+	if err != nil {
+		return nil, err
+	}
+	return patch, nil
+}
+
 func (*cpuComponentStub) Get(context.Context, int64) (any, error)       { return nil, nil }
 func (*cpuComponentStub) GetPublic(context.Context, int64) (any, error) { return nil, nil }
 func (*cpuComponentStub) Delete(context.Context, int64) error           { return nil }
+
 func (c *cpuComponentStub) Upsert(ctx context.Context, modelID int64, input specs.Input) (any, error) {
-	c.input = input
-	c.inTransaction, _ = ctx.Value(txContextKey{}).(bool)
+	c.upsertInput = input
+	c.upsertInTransaction, _ = ctx.Value(insideTransactionKey{}).(bool)
 	patch, ok := input.(cpu.Patch)
 	if !ok {
 		return nil, apperror.Invalid("expected typed CPU patch")
@@ -61,25 +76,24 @@ func (c *cpuComponentStub) Upsert(ctx context.Context, modelID int64, input spec
 func TestHandlerDecodesBeforeCallingService(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	component := &cpuComponentStub{}
-	registration := cpu.New(nil)
-	registration.Service = component
-	registry := specs.NewRegistry(registration)
-	tx := &transactionStub{}
-	service := specs.NewService(tx, modelResolver{"cpu"}, registry)
-	handler := specs.NewHandler(service, registry)
+	tx := &transactorStub{}
+	service := specs.NewService(tx, modelResolverStub{"cpu"}, specs.NewRegistry(component))
+	handler := specs.NewHandler(service)
 	router := gin.New()
 	router.PUT("/models/:id/specs", handler.Upsert)
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, httptest.NewRequest(http.MethodPut, "/models/42/specs",
 		strings.NewReader(`{"core_count":8,"thread_count":16,"memory_type_ids":[1,2]}`)))
-	if w.Code != http.StatusOK || !component.inTransaction || tx.calls != 1 {
+	if w.Code != http.StatusOK || !component.upsertInTransaction || tx.calls != 1 {
 		t.Fatalf("upsert = %d %s, tx=%+v, component=%+v", w.Code, w.Body, tx, component)
 	}
-	patch, ok := component.input.(cpu.Patch)
+	patch, ok := component.upsertInput.(cpu.Patch)
 	if !ok || patch.CoreCount.Value == nil || *patch.CoreCount.Value != 8 || len(*patch.MemoryTypeIDs.Value) != 2 {
-		t.Fatalf("service did not receive typed input: %+v", component.input)
+		t.Fatalf("component did not receive a typed patch: %+v", component.upsertInput)
 	}
+
+	// Bad bodies must be rejected before a transaction is opened.
 	for body, want := range map[string]int{
 		`{"unknown":1}`:    http.StatusBadRequest,
 		`null`:             http.StatusBadRequest,
@@ -96,23 +110,24 @@ func TestHandlerDecodesBeforeCallingService(t *testing.T) {
 
 func TestServiceChecksModelTypeAndPropagatesTransactionError(t *testing.T) {
 	component := &cpuComponentStub{}
-	registration := cpu.New(nil)
-	registration.Service = component
-	registry := specs.NewRegistry(registration)
-	tx := &transactionStub{}
-	service := specs.NewService(tx, modelResolver{"cpu"}, registry)
-	if _, err := service.Upsert(context.Background(), 1, nil); !errors.Is(err, apperror.ErrInvalid) || component.input != nil {
+	registry := specs.NewRegistry(component)
+	tx := &transactorStub{}
+	service := specs.NewService(tx, modelResolverStub{"cpu"}, registry)
+
+	if _, err := service.Upsert(context.Background(), 1, nil); !errors.Is(err, apperror.ErrInvalid) || component.upsertInput != nil {
 		t.Fatalf("nil input must not reach component: %v", err)
 	}
-	if _, err := service.Upsert(context.Background(), 1, gpuInput{}); !errors.Is(err, apperror.ErrInvalid) || component.input != nil {
+	if _, err := service.Upsert(context.Background(), 1, gpuInput{}); !errors.Is(err, apperror.ErrInvalid) || component.upsertInput != nil {
 		t.Fatalf("mismatched input must not reach component: %v", err)
 	}
+
 	expected := errors.New("junction insert failed")
 	component.err = expected
-	if _, err := service.Upsert(context.Background(), 1, cpu.Patch{}); !errors.Is(err, expected) || !errors.Is(tx.err, expected) {
-		t.Fatalf("transaction error lost: returned=%v, transaction=%v", err, tx.err)
+	if _, err := service.Upsert(context.Background(), 1, cpu.Patch{}); !errors.Is(err, expected) || !errors.Is(tx.lastError, expected) {
+		t.Fatalf("transaction error lost: returned=%v, transaction=%v", err, tx.lastError)
 	}
-	unsupported := specs.NewService(tx, modelResolver{"gpu"}, registry)
+
+	unsupported := specs.NewService(tx, modelResolverStub{"gpu"}, registry)
 	if _, err := unsupported.Get(context.Background(), 1); !errors.Is(err, apperror.ErrInvalid) {
 		t.Fatalf("unsupported component type: %v", err)
 	}

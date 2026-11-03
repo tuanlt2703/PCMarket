@@ -44,25 +44,25 @@ func (h *Handler) Get(c *gin.Context) {
 	if !ok {
 		return
 	}
-	it, err := h.svc.Get(c.Request.Context(), c.Param("type"), id)
+	item, err := h.svc.Get(c.Request.Context(), c.Param("type"), id)
 	if err != nil {
 		httpx.WriteError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, it)
+	c.JSON(http.StatusOK, item)
 }
 
 func (h *Handler) Create(c *gin.Context) {
-	var in CreateLookupRequest
-	if !httpx.BindJSON(c, &in) {
+	var request CreateRequest
+	if !httpx.BindJSON(c, &request) {
 		return
 	}
-	it, err := h.svc.Create(c.Request.Context(), c.Param("type"), in.Input())
+	item, err := h.svc.Create(c.Request.Context(), c.Param("type"), request.Input())
 	if err != nil {
 		httpx.WriteError(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, it)
+	c.JSON(http.StatusCreated, item)
 }
 
 func (h *Handler) Update(c *gin.Context) {
@@ -70,16 +70,16 @@ func (h *Handler) Update(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var in UpdateLookupRequest
-	if !httpx.BindJSON(c, &in) {
+	var request UpdateRequest
+	if !httpx.BindJSON(c, &request) {
 		return
 	}
-	it, err := h.svc.Update(c.Request.Context(), c.Param("type"), id, in.Input())
+	item, err := h.svc.Update(c.Request.Context(), c.Param("type"), id, request.Input())
 	if err != nil {
 		httpx.WriteError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, it)
+	c.JSON(http.StatusOK, item)
 }
 
 func (h *Handler) Delete(c *gin.Context) {
@@ -102,7 +102,7 @@ func (h *Handler) PublicList(c *gin.Context) {
 		httpx.WriteError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"items": toPublic(items)})
+	c.JSON(http.StatusOK, gin.H{"items": toPublicItems(items)})
 }
 
 // PublicBatch lets a form or filter panel load several lookups in one request.
@@ -115,7 +115,7 @@ func (h *Handler) PublicBatch(c *gin.Context) {
 
 	slugs := strings.Split(raw, ",")
 	if len(slugs) > maxTypesPerRequest {
-		httpx.BadRequest(c, "too many lookup types requested")
+		httpx.WriteBadRequest(c, "too many lookup types requested")
 		return
 	}
 
@@ -127,7 +127,7 @@ func (h *Handler) PublicBatch(c *gin.Context) {
 			httpx.WriteError(c, err)
 			return
 		}
-		result[slug] = toPublic(items)
+		result[slug] = toPublicItems(items)
 	}
 	c.JSON(http.StatusOK, result)
 }

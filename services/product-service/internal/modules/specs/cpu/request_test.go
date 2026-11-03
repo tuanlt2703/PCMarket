@@ -7,7 +7,7 @@ import (
 	"product-service/internal/platform/apperror"
 )
 
-func TestDecodeRequestAndValidate(t *testing.T) {
+func TestDecodeUpsertRequestAndRules(t *testing.T) {
 	tests := []struct {
 		name    string
 		body    string
@@ -39,9 +39,9 @@ func TestDecodeRequestAndValidate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			input, err := decodeRequest([]byte(tt.body))
+			patch, err := DecodeUpsertRequest([]byte(tt.body))
 			if err == nil {
-				err = validate(input.(Patch).Apply(Attributes{}))
+				err = checkCrossFieldRules(patch.Apply(Attributes{}))
 			}
 			if tt.wantErr == nil && err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -53,14 +53,32 @@ func TestDecodeRequestAndValidate(t *testing.T) {
 	}
 }
 
+func TestValidationMessages(t *testing.T) {
+	tests := map[string]string{
+		`{"core_count":0}`:                          "core_count must be greater than 0",
+		`{"memory_type_ids":[1,0]}`:                 "memory_type_ids[1] must be greater than 0",
+		`{"l3_cache_mb":100000000}`:                 "l3_cache_mb must be less than or equal to 99999999.99",
+		`{"tdp_w":-1}`:                              "tdp_w must be greater than or equal to 0",
+		`{"max_operating_temperature_c":-1000}`:     "max_operating_temperature_c must be greater than or equal to -999.99",
+		`{"socket_id":-1,"memory_channel_count":0}`: "socket_id must be greater than 0; memory_channel_count must be greater than 0",
+	}
+	for body, want := range tests {
+		_, err := DecodeUpsertRequest([]byte(body))
+		if err == nil || err.Error() != want {
+			t.Errorf("%s: got %v, want %q", body, err, want)
+		}
+	}
+}
+
 func TestPatchApplyKeepsOmittedAndClearsNull(t *testing.T) {
 	cores, socket := int32(8), int64(3)
 	current := Attributes{CoreCount: &cores, SocketID: &socket, MemoryTypeIDs: []int64{1, 2}}
-	input, err := decodeRequest([]byte(`{"socket_id":null,"memory_type_ids":[5]}`))
+	patch, err := DecodeUpsertRequest([]byte(`{"socket_id":null,"memory_type_ids":[5]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	merged := input.(Patch).Apply(current)
+
+	merged := patch.Apply(current)
 	if merged.CoreCount == nil || *merged.CoreCount != 8 {
 		t.Fatal("omitted core_count must be kept")
 	}
@@ -71,6 +89,6 @@ func TestPatchApplyKeepsOmittedAndClearsNull(t *testing.T) {
 		t.Fatalf("memory_type_ids = %v", merged.MemoryTypeIDs)
 	}
 	if current.SocketID == nil {
-		t.Fatal("Apply must not mutate its argument")
+		t.Fatal("Apply must not modify its argument")
 	}
 }
