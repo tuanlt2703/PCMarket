@@ -1,27 +1,21 @@
 package app
 
 import (
-	"database/sql"
+	"net/http"
+	"product-service/internal/infrastructure"
 
 	"github.com/gin-gonic/gin"
-
-	"product-service/internal/handlers"
-	"product-service/internal/repositories"
-	"product-service/internal/routes"
-	"product-service/internal/services"
 )
 
-func NewApp(db *sql.DB) *gin.Engine {
-
+func NewApp(db *infrastructure.DB) *gin.Engine {
 	router := gin.Default()
 
-	// Dependency Injection
-	productRepository := repositories.NewProductRepository(db)
-	productService := services.NewProductService(productRepository)
-	productHandler := handlers.NewProductHandler(productService)
+	v1Api := router.Group("/api/v1")
+	adminGroup := v1Api.Group("/admin")
 
-	// Register routes
-	routes.RegisterProductRoutes(router, productHandler)
+	//temporary APIs to test server works
+	v1Api.GET("", func(c *gin.Context) { c.JSON(http.StatusOK, "Hello from public API") })
+	adminGroup.GET("", func(c *gin.Context) { c.JSON(http.StatusOK, "Hello from private admin API") })
 
 	return router
 }

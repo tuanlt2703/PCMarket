@@ -1,30 +1,36 @@
 package main
 
 import (
-	"log"
-
+	"context"
+	"fmt"
+	"os"
 	"product-service/config"
 	"product-service/internal/app"
 	"product-service/internal/infrastructure"
 )
 
 func main() {
-	// Load config
-	cfg := config.Load()
+	if err := Start(); err != nil {
+		fmt.Printf("Failed to start service, error %v", err)
+		os.Exit(1)
+	}
+}
 
-	// Connect database
-	db, err := infrastructure.NewSQLite(cfg)
+func Start() error {
+	cfg, err := config.Load()
 	if err != nil {
-		log.Fatal("Database connection failed:", err)
+		return err
+	}
+
+	db, err := infrastructure.Connect(context.Background(), cfg.DB.URL())
+	if err != nil {
+		return err
 	}
 	defer db.Close()
 
-	// Initialize Gin server and routes
 	server := app.NewApp(db)
-
-	log.Println("Server is running on :8080")
-
-	if err := server.Run(":8080"); err != nil {
-		log.Fatal(err)
+	if err := server.Run(cfg.AppPort); err != nil {
+		return err
 	}
+	return nil
 }

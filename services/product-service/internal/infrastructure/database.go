@@ -1,27 +1,33 @@
 package infrastructure
 
 import (
-	"database/sql"
+	"context"
+	"fmt"
 
-	_ "modernc.org/sqlite"
-
-	"product-service/config"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func NewSQLite(cfg *config.Config) (*sql.DB, error) {
+type DB struct {
+	pool *pgxpool.Pool
+}
 
-	db, err := sql.Open("sqlite", cfg.DBName)
+func Connect(ctx context.Context, url string) (*DB, error) {
+	pgPool, err := pgxpool.New(ctx, url)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Failed to create pool: %v", err)
 	}
 
-	if err := db.Ping(); err != nil {
-		return nil, err
+	if err := pgPool.Ping(ctx); err != nil {
+		pgPool.Close()
+		return nil, fmt.Errorf("Failed to connect database: %v", err)
 	}
+	return &DB{pool: pgPool}, nil
+}
 
-	// SQLite works best with a single writer connection.
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
+func (db *DB) Close() {
+	db.pool.Close()
+}
 
-	return db, nil
+func (db *DB) Ping(ctx context.Context) error {
+	return db.pool.Ping(ctx)
 }
