@@ -3,6 +3,7 @@ package app
 import (
 	"net/http"
 	"product-service/internal/infrastructure"
+	"product-service/modules/catalog"
 
 	"github.com/gin-gonic/gin"
 )
@@ -10,12 +11,16 @@ import (
 func NewApp(db *infrastructure.DB) *gin.Engine {
 	router := gin.Default()
 
-	v1Api := router.Group("/api/v1")
-	adminGroup := v1Api.Group("/admin")
+	publicAPIV1 := router.Group("/api/v1")
+	adminAPIV1 := publicAPIV1.Group("/admin")
+
+	catalogModule := catalog.NewModule(db)
 
 	//temporary APIs to test server works
-	v1Api.GET("", func(c *gin.Context) { c.JSON(http.StatusOK, "Hello from public API") })
-	adminGroup.GET("", func(c *gin.Context) { c.JSON(http.StatusOK, "Hello from private admin API") })
+	publicAPIV1.GET("", func(c *gin.Context) { c.JSON(http.StatusOK, "Hello from public API") })
+	adminAPIV1.GET("", func(c *gin.Context) { c.JSON(http.StatusOK, "Hello from private admin API") })
+
+	catalogModule.RegisterRoutes(adminAPIV1, publicAPIV1)
 
 	return router
 }
