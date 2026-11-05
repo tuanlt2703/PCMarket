@@ -40,7 +40,7 @@ func Load() (*AppConfiguration, error) {
 			Port:     getEnv("POSTGRES_PORT", "5432"),
 			Name:     getEnv("DB_NAME", "product_db"),
 			User:     getEnv("DB_USER", "product_user"),
-			Password: os.Getenv("PRODUCT_DB_PASSWORD"),
+			Password: os.Getenv("DB_PASSWORD"),
 		},
 	}
 

@@ -29,7 +29,7 @@ func Start() error {
 	defer db.Close()
 
 	server := app.NewApp(db)
-	if err := server.Run(cfg.AppPort); err != nil {
+	if err := server.Run(":" + cfg.AppPort); err != nil {
 		return err
 	}
 	return nil
