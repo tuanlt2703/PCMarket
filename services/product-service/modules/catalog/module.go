@@ -24,4 +24,7 @@ func (m *CatalogModule) RegisterRoutes(admin, public *gin.RouterGroup) {
 	ct := admin.Group("/component-types")
 	ct.GET("", m.componentTypeHandler.GetAll)
 	ct.GET("/:id", m.componentTypeHandler.GetByID)
+	ct.POST("", m.componentTypeHandler.Create)
+	ct.PUT("/:id", m.componentTypeHandler.Update)
+	ct.DELETE("/:id", m.componentTypeHandler.Delete)
 }

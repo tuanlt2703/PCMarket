@@ -2,6 +2,7 @@ package componenttype
 
 import (
 	"context"
+	"fmt"
 	"product-service/internal/infrastructure"
 
 	"github.com/jackc/pgx/v5"
@@ -55,4 +56,54 @@ func (repo *ComponentTypeRepository) GetByID(id int) (ComponentType, error) {
 		return ComponentType{}, err
 	}
 	return component, nil
+}
+
+func (repo *ComponentTypeRepository) Create(newComponent CreateComponentType) (ComponentType, error) {
+	query := `insert into component_types (code, name, description, is_active)
+	          values ($1, $2, $3, coallesce($4, true))`
+
+	row := repo.db.Conn().QueryRow(context.Background(), query,
+		newComponent.Code,
+		newComponent.Name,
+		newComponent.Description,
+		newComponent.IsActive)
+
+	component, err := parseComponentType(row)
+	if err != nil {
+		return ComponentType{}, err
+	}
+	return component, nil
+}
+
+func (repo *ComponentTypeRepository) Update(id int, updateComponent UpdateComponentType) (ComponentType, error) {
+	query := `update component_types
+	             set description = coallesce($1, description),
+			         is_active = coallesce($2, is_active)
+	           where id = $3 `
+
+	row := repo.db.Conn().QueryRow(context.Background(), query,
+		updateComponent.Description,
+		updateComponent.IsActive,
+		id)
+
+	component, err := parseComponentType(row)
+	if err != nil {
+		return ComponentType{}, err
+	}
+	return component, nil
+}
+
+func (repo *ComponentTypeRepository) Delete(id int) error {
+	query := `delete from component_types where id = $1`
+
+	result, err := repo.db.Conn().Exec(context.Background(), query, id)
+	if err != nil {
+		return err
+	}
+
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("Not found any row matches id %v", id)
+	}
+
+	return nil
 }
