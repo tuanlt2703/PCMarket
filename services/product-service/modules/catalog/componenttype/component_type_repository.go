@@ -15,8 +15,8 @@ func NewComponentTypeRepository(db *infrastructure.DB) *ComponentTypeRepository 
 	return &ComponentTypeRepository{db: db}
 }
 
-// A helper function to scan a component_types row to ComponentType struct
-func scanComponentType(row pgx.Row) (ComponentType, error) {
+// A helper function to parse a component_types row to ComponentType struct
+func parseComponentType(row pgx.Row) (ComponentType, error) {
 	var ct ComponentType
 	err := row.Scan(&ct.ID, &ct.Code, &ct.Name, &ct.Description, &ct.IsActive, &ct.CreatedAt, &ct.UpdatedAt)
 	return ct, err
@@ -33,7 +33,7 @@ func (repo *ComponentTypeRepository) GetAll() ([]ComponentType, error) {
 
 	var componentList []ComponentType
 	for rows.Next() {
-		ct, err := scanComponentType(rows)
+		ct, err := parseComponentType(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -43,4 +43,16 @@ func (repo *ComponentTypeRepository) GetAll() ([]ComponentType, error) {
 		return nil, err
 	}
 	return componentList, nil
+}
+
+func (repo *ComponentTypeRepository) GetByID(id int) (ComponentType, error) {
+	query := "select * from component_types where id = $1 order by name"
+
+	row := repo.db.Conn().QueryRow(context.Background(), query, id)
+
+	component, err := parseComponentType(row)
+	if err != nil {
+		return ComponentType{}, err
+	}
+	return component, nil
 }

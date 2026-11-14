@@ -11,3 +11,7 @@ func NewComponentTypeService(repo *ComponentTypeRepository) *ComponentTypeServic
 func (svc *ComponentTypeService) GetAll() ([]ComponentType, error) {
 	return svc.repo.GetAll()
 }
+
+func (svc *ComponentTypeService) GetByID(id int) (ComponentType, error) {
+	return svc.repo.GetByID(id)
+}
