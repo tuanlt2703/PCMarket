@@ -2,13 +2,13 @@ package app
 
 import (
 	"net/http"
-	"product-service/internal/infrastructure"
+	"product-service/internal/infrastructure/database"
 	"product-service/modules/catalog"
 
 	"github.com/gin-gonic/gin"
 )
 
-func NewApp(db *infrastructure.DB) *gin.Engine {
+func NewApp(db *database.DB) *gin.Engine {
 	router := gin.Default()
 
 	publicAPIV1 := router.Group("/api/v1")

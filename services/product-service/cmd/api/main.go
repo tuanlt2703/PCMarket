@@ -6,7 +6,7 @@ import (
 	"os"
 	"product-service/config"
 	"product-service/internal/app"
-	"product-service/internal/infrastructure"
+	"product-service/internal/infrastructure/database"
 )
 
 func main() {
@@ -22,7 +22,7 @@ func Start() error {
 		return err
 	}
 
-	db, err := infrastructure.Connect(context.Background(), cfg.DB.URL())
+	db, err := database.Connect(context.Background(), cfg.DB.URL())
 	if err != nil {
 		return err
 	}

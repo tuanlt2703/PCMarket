@@ -3,16 +3,16 @@ package componenttype
 import (
 	"context"
 	"fmt"
-	"product-service/internal/infrastructure"
+	"product-service/internal/infrastructure/database"
 
 	"github.com/jackc/pgx/v5"
 )
 
 type ComponentTypeRepository struct {
-	db *infrastructure.DB
+	db *database.DB
 }
 
-func NewComponentTypeRepository(db *infrastructure.DB) *ComponentTypeRepository {
+func NewComponentTypeRepository(db *database.DB) *ComponentTypeRepository {
 	return &ComponentTypeRepository{db: db}
 }
 

@@ -1,7 +1,7 @@
 package catalog
 
 import (
-	"product-service/internal/infrastructure"
+	"product-service/internal/infrastructure/database"
 	"product-service/modules/catalog/componenttype"
 
 	"github.com/gin-gonic/gin"
@@ -11,7 +11,7 @@ type CatalogModule struct {
 	componentTypeHandler *componenttype.ComponentTypeHandler
 }
 
-func NewModule(db *infrastructure.DB) *CatalogModule {
+func NewModule(db *database.DB) *CatalogModule {
 	componenttypeRepo := componenttype.NewComponentTypeRepository(db)
 	componenttypeSvc := componenttype.NewComponentTypeService(componenttypeRepo)
 
