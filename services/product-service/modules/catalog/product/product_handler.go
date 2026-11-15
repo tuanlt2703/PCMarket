@@ -16,12 +16,12 @@ func NewProductHandler(svc *ProductService) *ProductHandler {
 }
 
 func (handler *ProductHandler) GetAll(c *gin.Context) {
-	prdList, err := handler.svc.GetAll()
+	mdList, err := handler.svc.GetAll()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"Error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, prdList)
+	c.JSON(http.StatusOK, mdList)
 }
 
 func (handler *ProductHandler) GetByID(c *gin.Context) {
@@ -30,27 +30,27 @@ func (handler *ProductHandler) GetByID(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
-	prd, err := handler.svc.GetByID(id)
+	md, err := handler.svc.GetByID(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, prd)
+	c.JSON(http.StatusOK, md)
 }
 
 func (handler *ProductHandler) Create(c *gin.Context) {
-	var createProductModel CreateProductModel
+	var createProductModel CreateModel
 	err := c.BindJSON(&createProductModel)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
-	prdList, err := handler.svc.Create(createProductModel)
+	md, err := handler.svc.Create(createProductModel)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, prdList)
+	c.JSON(http.StatusCreated, md)
 }
 
 func (handler *ProductHandler) Update(c *gin.Context) {
@@ -59,7 +59,7 @@ func (handler *ProductHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
-	var updateProductModel UpdateProductModel
+	var updateProductModel UpdateModel
 	err = c.BindJSON(&updateProductModel)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

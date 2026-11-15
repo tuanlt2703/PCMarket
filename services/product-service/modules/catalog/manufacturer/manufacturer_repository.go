@@ -16,7 +16,7 @@ func NewManufacturerRepository(db *database.DB) *ManufacturerRepository {
 	return &ManufacturerRepository{db: db}
 }
 
-// A helper function to parse a manufacturer row to Manufacturer struct
+// A helper function to parse a manufacturers row to manufacturers struct
 func parseManufacturer(row pgx.Row) (Manufacturer, error) {
 	var mf Manufacturer
 	err := row.Scan(&mf.ID, &mf.Name, &mf.Description, &mf.IsActive, &mf.CreatedAt, &mf.UpdatedAt)
@@ -24,7 +24,7 @@ func parseManufacturer(row pgx.Row) (Manufacturer, error) {
 }
 
 func (repo *ManufacturerRepository) GetAll() ([]Manufacturer, error) {
-	query := "select * from manufacturer order by name"
+	query := "select * from manufacturers order by name"
 
 	rows, err := repo.db.Conn().Query(context.Background(), query)
 	if err != nil {
@@ -47,7 +47,7 @@ func (repo *ManufacturerRepository) GetAll() ([]Manufacturer, error) {
 }
 
 func (repo *ManufacturerRepository) GetByID(id int) (Manufacturer, error) {
-	query := "select * from manufacturer where id = $1 order by name"
+	query := "select * from manufacturers where id = $1 order by name"
 
 	row := repo.db.Conn().QueryRow(context.Background(), query, id)
 
@@ -59,7 +59,7 @@ func (repo *ManufacturerRepository) GetByID(id int) (Manufacturer, error) {
 }
 
 func (repo *ManufacturerRepository) Create(createManufacturer CreateManufacturer) (Manufacturer, error) {
-	query := `insert into manufacturer (name, description, is_active)
+	query := `insert into manufacturers (name, description, is_active)
 	          values ($1, $2, coallesce($3, true))`
 
 	row := repo.db.Conn().QueryRow(context.Background(), query,
@@ -93,7 +93,7 @@ func (repo *ManufacturerRepository) Update(id int, updateManufacturer UpdateManu
 }
 
 func (repo *ManufacturerRepository) Delete(id int) error {
-	query := `delete from manufacturer where id = $1`
+	query := `delete from manufacturers where id = $1`
 
 	result, err := repo.db.Conn().Exec(context.Background(), query, id)
 	if err != nil {

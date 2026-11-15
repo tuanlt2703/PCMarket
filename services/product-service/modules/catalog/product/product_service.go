@@ -8,19 +8,19 @@ func NewProductService(repo *ProductRepository) *ProductService {
 	return &ProductService{repo: repo}
 }
 
-func (svc *ProductService) GetAll() ([]ProductModel, error) {
+func (svc *ProductService) GetAll() ([]Model, error) {
 	return svc.repo.GetAll()
 }
 
-func (svc *ProductService) GetByID(id int) (ProductModel, error) {
+func (svc *ProductService) GetByID(id int) (Model, error) {
 	return svc.repo.GetByID(id)
 }
 
-func (svc *ProductService) Create(createProductModel CreateProductModel) (ProductModel, error) {
+func (svc *ProductService) Create(createProductModel CreateModel) (Model, error) {
 	return svc.repo.Create(createProductModel)
 }
 
-func (svc *ProductService) Update(id int, updateProductModel UpdateProductModel) error {
+func (svc *ProductService) Update(id int, updateProductModel UpdateModel) error {
 	return svc.repo.Update(id, updateProductModel)
 }
 

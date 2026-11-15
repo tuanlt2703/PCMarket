@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-type ProductModel struct {
+type Model struct {
 	ID            int64                       `json:"id"`
 	ComponentType componenttype.ComponentType `json:"component_type"`
 	Manufacturer  manufacturer.Manufacturer   `json:"manufacturer"`
@@ -18,7 +18,7 @@ type ProductModel struct {
 	UpdatedAt     time.Time                   `json:"updated_at"`
 }
 
-type CreateProductModel struct {
+type CreateModel struct {
 	ComponentTypeID int64     `json:"component_type_id"`
 	ManufacturerID  int64     `json:"manufacturer_id"`
 	ModelName       string    `json:"model_name"`
@@ -27,7 +27,7 @@ type CreateProductModel struct {
 	IsActive        *bool     `json:"is_active"`
 }
 
-type UpdateProductModel struct {
+type UpdateModel struct {
 	ModelName   string    `json:"model_name"`
 	Description *string   `json:"description"`
 	ReleaseDate time.Time `json:"release_date"`

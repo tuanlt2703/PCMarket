@@ -16,17 +16,17 @@ func NewProductRepository(db *database.DB) *ProductRepository {
 	return &ProductRepository{db: db}
 }
 
-// A helper function to parse a model row to ProductModel struct
-func parseProductModel(row pgx.Row) (ProductModel, error) {
-	var prd ProductModel
-	err := row.Scan(&prd.ID,
-		&prd.ComponentType.ID, &prd.ComponentType.Name,
-		&prd.Manufacturer.ID, &prd.Manufacturer.Name,
-		&prd.ModelName, &prd.Description, &prd.ReleaseDate, &prd.IsActive, &prd.CreatedAt, &prd.UpdatedAt)
-	return prd, err
+// A helper function to parse a model row to Model struct
+func parseProductModel(row pgx.Row) (Model, error) {
+	var md Model
+	err := row.Scan(&md.ID,
+		&md.ComponentType.ID, &md.ComponentType.Name,
+		&md.Manufacturer.ID, &md.Manufacturer.Name,
+		&md.ModelName, &md.Description, &md.ReleaseDate, &md.IsActive, &md.CreatedAt, &md.UpdatedAt)
+	return md, err
 }
 
-func (repo *ProductRepository) GetAll() ([]ProductModel, error) {
+func (repo *ProductRepository) GetAll() ([]Model, error) {
 	query := ` select md.id,
                       ct.id, ct.name,
                       mf.id, mf.name,
@@ -42,21 +42,21 @@ func (repo *ProductRepository) GetAll() ([]ProductModel, error) {
 	}
 	defer rows.Close()
 
-	var prdList []ProductModel
+	var mdList []Model
 	for rows.Next() {
-		ct, err := parseProductModel(rows)
+		md, err := parseProductModel(rows)
 		if err != nil {
 			return nil, err
 		}
-		prdList = append(prdList, ct)
+		mdList = append(mdList, md)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	return prdList, nil
+	return mdList, nil
 }
 
-func (repo *ProductRepository) GetByID(id int) (ProductModel, error) {
+func (repo *ProductRepository) GetByID(id int) (Model, error) {
 	query := ` select md.id,
                       ct.id, ct.name,
                       mf.id, mf.name,
@@ -68,14 +68,14 @@ func (repo *ProductRepository) GetByID(id int) (ProductModel, error) {
 
 	row := repo.db.Conn().QueryRow(context.Background(), query, id)
 
-	prd, err := parseProductModel(row)
+	md, err := parseProductModel(row)
 	if err != nil {
-		return ProductModel{}, err
+		return Model{}, err
 	}
-	return prd, nil
+	return md, nil
 }
 
-func (repo *ProductRepository) Create(createProductModel CreateProductModel) (ProductModel, error) {
+func (repo *ProductRepository) Create(createProductModel CreateModel) (Model, error) {
 	query := ` with new_model as (
 	           insert into models (component_type_id, manufacturer_id, model_name, description, release_date, is_active)
                            values ($1, $2, $3, $4, $5::date, COALESCE($6, TRUE))
@@ -98,14 +98,14 @@ func (repo *ProductRepository) Create(createProductModel CreateProductModel) (Pr
 		createProductModel.ReleaseDate,
 		createProductModel.IsActive)
 
-	prd, err := parseProductModel(row)
+	md, err := parseProductModel(row)
 	if err != nil {
-		return ProductModel{}, err
+		return Model{}, err
 	}
-	return prd, nil
+	return md, nil
 }
 
-func (repo *ProductRepository) Update(id int, updateProductModel UpdateProductModel) error {
+func (repo *ProductRepository) Update(id int, updateProductModel UpdateModel) error {
 	query := `update models
 	             set model_name = $1,
 			         description = $2,
