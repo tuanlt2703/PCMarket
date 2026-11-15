@@ -27,14 +27,7 @@ func parseModel(row pgx.Row) (Model, error) {
 }
 
 func (repo *ModelRepository) GetAll() ([]Model, error) {
-	query := ` select md.id,
-                      ct.id, ct.name,
-                      mf.id, mf.name,
-                      md.model_name, md.description, md.release_date, md.is_active, md.created_at, md.updated_at
-                 from models md
-                 join component_types ct on ct.id = md.component_type_id
-                 join manufacturers mf on mf.id = md.manufacturer_id
-             order by m.model_name, m.id`
+	query := `select * from model_detail order by model_name, id`
 
 	rows, err := repo.db.Conn().Query(context.Background(), query)
 	if err != nil {
@@ -57,14 +50,7 @@ func (repo *ModelRepository) GetAll() ([]Model, error) {
 }
 
 func (repo *ModelRepository) GetByID(id int) (Model, error) {
-	query := ` select md.id,
-                      ct.id, ct.name,
-                      mf.id, mf.name,
-                      md.model_name, md.description, md.release_date, md.is_active, md.created_at, md.updated_at
-                 from models md
-                 join component_types ct on ct.id = md.component_type_id
-                 join manufacturers mf on mf.id = md.manufacturer_id
-                where md.id = $1"`
+	query := `select * from model_detail where id = $1`
 
 	row := repo.db.Conn().QueryRow(context.Background(), query, id)
 
@@ -76,29 +62,28 @@ func (repo *ModelRepository) GetByID(id int) (Model, error) {
 }
 
 func (repo *ModelRepository) Create(createModel CreateModel) (Model, error) {
-	query := ` with new_model as (
-	           insert into models (component_type_id, manufacturer_id, model_name, description, release_date, is_active)
-                           values ($1, $2, $3, $4, $5::date, COALESCE($6, TRUE))
-               returning id
-			   )
-			   select md.id,
-                      ct.id, ct.name,
-                      mf.id, mf.name,
-                      md.model_name, md.description, md.release_date, md.is_active, md.created_at, md.updated_at
-                 from models md
-                 join component_types ct on ct.id = md.component_type_id
-                 join manufacturers mf on mf.id = md.manufacturer_id
-                where md.id = (select id from new_model)`
+	ctx := context.Background()
+	var md Model
+	err := pgx.BeginFunc(ctx, repo.db.Conn(), func(tx pgx.Tx) error {
+		query := `insert into models (component_type_id, manufacturer_id, model_name, description, release_date, is_active)
+		          values ($1, $2, $3, $4, $5::date, COALESCE($6, TRUE))
+		          returning id`
 
-	row := repo.db.Conn().QueryRow(context.Background(), query,
-		createModel.ComponentTypeID,
-		createModel.ManufacturerID,
-		createModel.ModelName,
-		createModel.Description,
-		createModel.ReleaseDate,
-		createModel.IsActive)
+		var id int64
+		err := tx.QueryRow(ctx, query,
+			createModel.ComponentTypeID,
+			createModel.ManufacturerID,
+			createModel.ModelName,
+			createModel.Description,
+			createModel.ReleaseDate,
+			createModel.IsActive).Scan(&id)
+		if err != nil {
+			return err
+		}
 
-	md, err := parseModel(row)
+		md, err = parseModel(tx.QueryRow(ctx, `select * from model_detail where id = $1`, id))
+		return err
+	})
 	if err != nil {
 		return Model{}, err
 	}
