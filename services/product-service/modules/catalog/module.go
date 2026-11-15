@@ -4,54 +4,54 @@ import (
 	"product-service/internal/infrastructure/database"
 	"product-service/modules/catalog/componenttype"
 	"product-service/modules/catalog/manufacturer"
-	"product-service/modules/catalog/product"
+	"product-service/modules/catalog/model"
 
 	"github.com/gin-gonic/gin"
 )
 
 type CatalogModule struct {
-	componentTypeHandler *componenttype.ComponentTypeHandler
-	manufacturerHandler  *manufacturer.ManufacturerHandler
-	productHandler       *product.ProductHandler
+	ctHandler *componenttype.ComponentTypeHandler
+	mfHandler *manufacturer.ManufacturerHandler
+	mdHandler *model.ModelHandler
 }
 
 func NewModule(db *database.DB) *CatalogModule {
-	componenttypeRepo := componenttype.NewComponentTypeRepository(db)
-	componenttypeSvc := componenttype.NewComponentTypeService(componenttypeRepo)
+	ctRepo := componenttype.NewComponentTypeRepository(db)
+	ctSvc := componenttype.NewComponentTypeService(ctRepo)
 
-	manufacturerRepo := manufacturer.NewManufacturerRepository(db)
-	manufacturerSvc := manufacturer.NewManufacturerService(manufacturerRepo)
+	mfRepo := manufacturer.NewManufacturerRepository(db)
+	mfSvc := manufacturer.NewManufacturerService(mfRepo)
 
-	productRepo := product.NewProductRepository(db)
-	productSvc := product.NewProductService(productRepo)
+	mdRepo := model.NewModelRepository(db)
+	mdSvc := model.NewModelService(mdRepo)
 
 	return &CatalogModule{
-		componentTypeHandler: componenttype.NewComponentTypeHandler(componenttypeSvc),
-		manufacturerHandler:  manufacturer.NewManufacturerHandler(manufacturerSvc),
-		productHandler:       product.NewProductHandler(productSvc),
+		ctHandler: componenttype.NewComponentTypeHandler(ctSvc),
+		mfHandler: manufacturer.NewManufacturerHandler(mfSvc),
+		mdHandler: model.NewModelHandler(mdSvc),
 	}
 }
 
-func (m *CatalogModule) RegisterRoutes(admin, public *gin.RouterGroup) {
+func (cat *CatalogModule) RegisterRoutes(admin, public *gin.RouterGroup) {
 	ct := admin.Group("/component-types")
-	ct.GET("", m.componentTypeHandler.GetAll)
-	ct.GET("/:id", m.componentTypeHandler.GetByID)
-	ct.POST("", m.componentTypeHandler.Create)
-	ct.PUT("/:id", m.componentTypeHandler.Update)
-	ct.DELETE("/:id", m.componentTypeHandler.Delete)
+	ct.GET("", cat.ctHandler.GetAll)
+	ct.GET("/:id", cat.ctHandler.GetByID)
+	ct.POST("", cat.ctHandler.Create)
+	ct.PUT("/:id", cat.ctHandler.Update)
+	ct.DELETE("/:id", cat.ctHandler.Delete)
 
 	mf := admin.Group("/manufacturers")
-	mf.GET("", m.manufacturerHandler.GetAll)
-	mf.GET("/:id", m.manufacturerHandler.GetByID)
-	mf.POST("", m.manufacturerHandler.Create)
-	mf.PUT("/:id", m.manufacturerHandler.Update)
-	mf.DELETE("/:id", m.manufacturerHandler.Delete)
+	mf.GET("", cat.mfHandler.GetAll)
+	mf.GET("/:id", cat.mfHandler.GetByID)
+	mf.POST("", cat.mfHandler.Create)
+	mf.PUT("/:id", cat.mfHandler.Update)
+	mf.DELETE("/:id", cat.mfHandler.Delete)
 
-	pm := admin.Group("/models")
-	pm.GET("", m.productHandler.GetAll)
-	pm.GET("/:id", m.productHandler.GetByID)
-	pm.POST("", m.productHandler.Create)
-	pm.PUT("/:id", m.productHandler.Update)
-	pm.DELETE("/:id", m.productHandler.Delete)
+	models := admin.Group("/models")
+	models.GET("", cat.mdHandler.GetAll)
+	models.GET("/:id", cat.mdHandler.GetByID)
+	models.POST("", cat.mdHandler.Create)
+	models.PUT("/:id", cat.mdHandler.Update)
+	models.DELETE("/:id", cat.mdHandler.Delete)
 
 }

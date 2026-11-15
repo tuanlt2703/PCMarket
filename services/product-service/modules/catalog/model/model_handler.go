@@ -1,4 +1,4 @@
-package product
+package model
 
 import (
 	"net/http"
@@ -7,15 +7,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type ProductHandler struct {
-	svc *ProductService
+type ModelHandler struct {
+	svc *ModelService
 }
 
-func NewProductHandler(svc *ProductService) *ProductHandler {
-	return &ProductHandler{svc: svc}
+func NewModelHandler(svc *ModelService) *ModelHandler {
+	return &ModelHandler{svc: svc}
 }
 
-func (handler *ProductHandler) GetAll(c *gin.Context) {
+func (handler *ModelHandler) GetAll(c *gin.Context) {
 	mdList, err := handler.svc.GetAll()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"Error": err.Error()})
@@ -24,7 +24,7 @@ func (handler *ProductHandler) GetAll(c *gin.Context) {
 	c.JSON(http.StatusOK, mdList)
 }
 
-func (handler *ProductHandler) GetByID(c *gin.Context) {
+func (handler *ModelHandler) GetByID(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -38,14 +38,14 @@ func (handler *ProductHandler) GetByID(c *gin.Context) {
 	c.JSON(http.StatusOK, md)
 }
 
-func (handler *ProductHandler) Create(c *gin.Context) {
-	var createProductModel CreateModel
-	err := c.BindJSON(&createProductModel)
+func (handler *ModelHandler) Create(c *gin.Context) {
+	var createModel CreateModel
+	err := c.BindJSON(&createModel)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
-	md, err := handler.svc.Create(createProductModel)
+	md, err := handler.svc.Create(createModel)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -53,19 +53,19 @@ func (handler *ProductHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, md)
 }
 
-func (handler *ProductHandler) Update(c *gin.Context) {
+func (handler *ModelHandler) Update(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
-	var updateProductModel UpdateModel
-	err = c.BindJSON(&updateProductModel)
+	var updateModel UpdateModel
+	err = c.BindJSON(&updateModel)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
-	err = handler.svc.Update(id, updateProductModel)
+	err = handler.svc.Update(id, updateModel)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -73,7 +73,7 @@ func (handler *ProductHandler) Update(c *gin.Context) {
 	c.Status(http.StatusAccepted)
 }
 
-func (handler *ProductHandler) Delete(c *gin.Context) {
+func (handler *ModelHandler) Delete(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

@@ -1,4 +1,4 @@
-package product
+package model
 
 import (
 	"context"
@@ -8,16 +8,16 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-type ProductRepository struct {
+type ModelRepository struct {
 	db *database.DB
 }
 
-func NewProductRepository(db *database.DB) *ProductRepository {
-	return &ProductRepository{db: db}
+func NewModelRepository(db *database.DB) *ModelRepository {
+	return &ModelRepository{db: db}
 }
 
 // A helper function to parse a model row to Model struct
-func parseProductModel(row pgx.Row) (Model, error) {
+func parseModel(row pgx.Row) (Model, error) {
 	var md Model
 	err := row.Scan(&md.ID,
 		&md.ComponentType.ID, &md.ComponentType.Name,
@@ -26,7 +26,7 @@ func parseProductModel(row pgx.Row) (Model, error) {
 	return md, err
 }
 
-func (repo *ProductRepository) GetAll() ([]Model, error) {
+func (repo *ModelRepository) GetAll() ([]Model, error) {
 	query := ` select md.id,
                       ct.id, ct.name,
                       mf.id, mf.name,
@@ -44,7 +44,7 @@ func (repo *ProductRepository) GetAll() ([]Model, error) {
 
 	var mdList []Model
 	for rows.Next() {
-		md, err := parseProductModel(rows)
+		md, err := parseModel(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -56,7 +56,7 @@ func (repo *ProductRepository) GetAll() ([]Model, error) {
 	return mdList, nil
 }
 
-func (repo *ProductRepository) GetByID(id int) (Model, error) {
+func (repo *ModelRepository) GetByID(id int) (Model, error) {
 	query := ` select md.id,
                       ct.id, ct.name,
                       mf.id, mf.name,
@@ -68,14 +68,14 @@ func (repo *ProductRepository) GetByID(id int) (Model, error) {
 
 	row := repo.db.Conn().QueryRow(context.Background(), query, id)
 
-	md, err := parseProductModel(row)
+	md, err := parseModel(row)
 	if err != nil {
 		return Model{}, err
 	}
 	return md, nil
 }
 
-func (repo *ProductRepository) Create(createProductModel CreateModel) (Model, error) {
+func (repo *ModelRepository) Create(createModel CreateModel) (Model, error) {
 	query := ` with new_model as (
 	           insert into models (component_type_id, manufacturer_id, model_name, description, release_date, is_active)
                            values ($1, $2, $3, $4, $5::date, COALESCE($6, TRUE))
@@ -91,21 +91,21 @@ func (repo *ProductRepository) Create(createProductModel CreateModel) (Model, er
                 where md.id = (select id from new_model)`
 
 	row := repo.db.Conn().QueryRow(context.Background(), query,
-		createProductModel.ComponentTypeID,
-		createProductModel.ManufacturerID,
-		createProductModel.ModelName,
-		createProductModel.Description,
-		createProductModel.ReleaseDate,
-		createProductModel.IsActive)
+		createModel.ComponentTypeID,
+		createModel.ManufacturerID,
+		createModel.ModelName,
+		createModel.Description,
+		createModel.ReleaseDate,
+		createModel.IsActive)
 
-	md, err := parseProductModel(row)
+	md, err := parseModel(row)
 	if err != nil {
 		return Model{}, err
 	}
 	return md, nil
 }
 
-func (repo *ProductRepository) Update(id int, updateProductModel UpdateModel) error {
+func (repo *ModelRepository) Update(id int, updateModel UpdateModel) error {
 	query := `update models
 	             set model_name = $1,
 			         description = $2,
@@ -114,10 +114,10 @@ func (repo *ProductRepository) Update(id int, updateProductModel UpdateModel) er
 	           where id = $5 `
 
 	result, err := repo.db.Conn().Exec(context.Background(), query,
-		updateProductModel.ModelName,
-		updateProductModel.Description,
-		updateProductModel.ReleaseDate,
-		updateProductModel.IsActive,
+		updateModel.ModelName,
+		updateModel.Description,
+		updateModel.ReleaseDate,
+		updateModel.IsActive,
 		id)
 
 	if err != nil {
@@ -130,7 +130,7 @@ func (repo *ProductRepository) Update(id int, updateProductModel UpdateModel) er
 	return nil
 }
 
-func (repo *ProductRepository) Delete(id int) error {
+func (repo *ModelRepository) Delete(id int) error {
 	query := `delete from models where id = $1`
 
 	result, err := repo.db.Conn().Exec(context.Background(), query, id)
