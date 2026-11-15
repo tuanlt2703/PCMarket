@@ -16,12 +16,12 @@ func NewComponentTypeHandler(svc *ComponentTypeService) *ComponentTypeHandler {
 }
 
 func (handler *ComponentTypeHandler) GetAll(c *gin.Context) {
-	componentList, err := handler.svc.GetAll()
+	ctList, err := handler.svc.GetAll()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"Error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, componentList)
+	c.JSON(http.StatusOK, ctList)
 }
 
 func (handler *ComponentTypeHandler) GetByID(c *gin.Context) {
@@ -30,27 +30,27 @@ func (handler *ComponentTypeHandler) GetByID(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
-	component, err := handler.svc.GetByID(id)
+	ct, err := handler.svc.GetByID(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, component)
+	c.JSON(http.StatusOK, ct)
 }
 
 func (handler *ComponentTypeHandler) Create(c *gin.Context) {
-	var newComponent CreateComponentType
-	err := c.BindJSON(&newComponent)
+	var createComponentType CreateComponentType
+	err := c.BindJSON(&createComponentType)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
-	component, err := handler.svc.Create(newComponent)
+	ct, err := handler.svc.Create(createComponentType)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, component)
+	c.JSON(http.StatusCreated, ct)
 }
 
 func (handler *ComponentTypeHandler) Update(c *gin.Context) {
@@ -59,18 +59,18 @@ func (handler *ComponentTypeHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
-	var updateComponent UpdateComponentType
-	err = c.BindJSON(&updateComponent)
+	var updateComponentType UpdateComponentType
+	err = c.BindJSON(&updateComponentType)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
-	component, err := handler.svc.Update(id, updateComponent)
+	ct, err := handler.svc.Update(id, updateComponentType)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, component)
+	c.JSON(http.StatusOK, ct)
 }
 
 func (handler *ComponentTypeHandler) Delete(c *gin.Context) {

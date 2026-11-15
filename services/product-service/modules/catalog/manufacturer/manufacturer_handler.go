@@ -16,12 +16,12 @@ func NewManufacturerHandler(svc *ManufacturerService) *ManufacturerHandler {
 }
 
 func (handler *ManufacturerHandler) GetAll(c *gin.Context) {
-	componentList, err := handler.svc.GetAll()
+	mfList, err := handler.svc.GetAll()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"Error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, componentList)
+	c.JSON(http.StatusOK, mfList)
 }
 
 func (handler *ManufacturerHandler) GetByID(c *gin.Context) {
@@ -30,27 +30,27 @@ func (handler *ManufacturerHandler) GetByID(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
-	component, err := handler.svc.GetByID(id)
+	mf, err := handler.svc.GetByID(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, component)
+	c.JSON(http.StatusOK, mf)
 }
 
 func (handler *ManufacturerHandler) Create(c *gin.Context) {
-	var newComponent CreateManufacturer
-	err := c.BindJSON(&newComponent)
+	var createManufacturer CreateManufacturer
+	err := c.BindJSON(&createManufacturer)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
-	component, err := handler.svc.Create(newComponent)
+	mf, err := handler.svc.Create(createManufacturer)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, component)
+	c.JSON(http.StatusCreated, mf)
 }
 
 func (handler *ManufacturerHandler) Update(c *gin.Context) {
@@ -59,18 +59,18 @@ func (handler *ManufacturerHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
-	var updateComponent UpdateManufacturer
-	err = c.BindJSON(&updateComponent)
+	var updateManufacturer UpdateManufacturer
+	err = c.BindJSON(&updateManufacturer)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
-	component, err := handler.svc.Update(id, updateComponent)
+	mf, err := handler.svc.Update(id, updateManufacturer)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, component)
+	c.JSON(http.StatusOK, mf)
 }
 
 func (handler *ManufacturerHandler) Delete(c *gin.Context) {

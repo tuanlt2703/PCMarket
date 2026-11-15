@@ -18,9 +18,9 @@ func NewManufacturerRepository(db *database.DB) *ManufacturerRepository {
 
 // A helper function to parse a manufacturer row to Manufacturer struct
 func parseManufacturer(row pgx.Row) (Manufacturer, error) {
-	var ct Manufacturer
-	err := row.Scan(&ct.ID, &ct.Name, &ct.Description, &ct.IsActive, &ct.CreatedAt, &ct.UpdatedAt)
-	return ct, err
+	var mf Manufacturer
+	err := row.Scan(&mf.ID, &mf.Name, &mf.Description, &mf.IsActive, &mf.CreatedAt, &mf.UpdatedAt)
+	return mf, err
 }
 
 func (repo *ManufacturerRepository) GetAll() ([]Manufacturer, error) {
@@ -32,18 +32,18 @@ func (repo *ManufacturerRepository) GetAll() ([]Manufacturer, error) {
 	}
 	defer rows.Close()
 
-	var componentList []Manufacturer
+	var mfList []Manufacturer
 	for rows.Next() {
-		ct, err := parseManufacturer(rows)
+		mt, err := parseManufacturer(rows)
 		if err != nil {
 			return nil, err
 		}
-		componentList = append(componentList, ct)
+		mfList = append(mfList, mt)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	return componentList, nil
+	return mfList, nil
 }
 
 func (repo *ManufacturerRepository) GetByID(id int) (Manufacturer, error) {
@@ -51,45 +51,45 @@ func (repo *ManufacturerRepository) GetByID(id int) (Manufacturer, error) {
 
 	row := repo.db.Conn().QueryRow(context.Background(), query, id)
 
-	component, err := parseManufacturer(row)
+	mf, err := parseManufacturer(row)
 	if err != nil {
 		return Manufacturer{}, err
 	}
-	return component, nil
+	return mf, nil
 }
 
-func (repo *ManufacturerRepository) Create(newComponent CreateManufacturer) (Manufacturer, error) {
+func (repo *ManufacturerRepository) Create(createManufacturer CreateManufacturer) (Manufacturer, error) {
 	query := `insert into manufacturer (name, description, is_active)
 	          values ($1, $2, coallesce($3, true))`
 
 	row := repo.db.Conn().QueryRow(context.Background(), query,
-		newComponent.Name,
-		newComponent.Description,
-		newComponent.IsActive)
+		createManufacturer.Name,
+		createManufacturer.Description,
+		createManufacturer.IsActive)
 
-	component, err := parseManufacturer(row)
+	mf, err := parseManufacturer(row)
 	if err != nil {
 		return Manufacturer{}, err
 	}
-	return component, nil
+	return mf, nil
 }
 
-func (repo *ManufacturerRepository) Update(id int, updateComponent UpdateManufacturer) (Manufacturer, error) {
+func (repo *ManufacturerRepository) Update(id int, updateManufacturer UpdateManufacturer) (Manufacturer, error) {
 	query := `update manufacturer
 	             set description = coallesce($1, description),
 			         is_active = coallesce($2, is_active)
 	           where id = $3 `
 
 	row := repo.db.Conn().QueryRow(context.Background(), query,
-		updateComponent.Description,
-		updateComponent.IsActive,
+		updateManufacturer.Description,
+		updateManufacturer.IsActive,
 		id)
 
-	component, err := parseManufacturer(row)
+	mf, err := parseManufacturer(row)
 	if err != nil {
 		return Manufacturer{}, err
 	}
-	return component, nil
+	return mf, nil
 }
 
 func (repo *ManufacturerRepository) Delete(id int) error {

@@ -4,6 +4,7 @@ import (
 	"product-service/internal/infrastructure/database"
 	"product-service/modules/catalog/componenttype"
 	"product-service/modules/catalog/manufacturer"
+	"product-service/modules/catalog/product"
 
 	"github.com/gin-gonic/gin"
 )
@@ -11,6 +12,7 @@ import (
 type CatalogModule struct {
 	componentTypeHandler *componenttype.ComponentTypeHandler
 	manufacturerHandler  *manufacturer.ManufacturerHandler
+	productHandler       *product.ProductHandler
 }
 
 func NewModule(db *database.DB) *CatalogModule {
@@ -20,9 +22,13 @@ func NewModule(db *database.DB) *CatalogModule {
 	manufacturerRepo := manufacturer.NewManufacturerRepository(db)
 	manufacturerSvc := manufacturer.NewManufacturerService(manufacturerRepo)
 
+	productRepo := product.NewProductRepository(db)
+	productSvc := product.NewProductService(productRepo)
+
 	return &CatalogModule{
 		componentTypeHandler: componenttype.NewComponentTypeHandler(componenttypeSvc),
 		manufacturerHandler:  manufacturer.NewManufacturerHandler(manufacturerSvc),
+		productHandler:       product.NewProductHandler(productSvc),
 	}
 }
 
@@ -40,4 +46,12 @@ func (m *CatalogModule) RegisterRoutes(admin, public *gin.RouterGroup) {
 	mf.POST("", m.manufacturerHandler.Create)
 	mf.PUT("/:id", m.manufacturerHandler.Update)
 	mf.DELETE("/:id", m.manufacturerHandler.Delete)
+
+	pm := admin.Group("/models")
+	pm.GET("", m.productHandler.GetAll)
+	pm.GET("/:id", m.productHandler.GetByID)
+	pm.POST("", m.productHandler.Create)
+	pm.PUT("/:id", m.productHandler.Update)
+	pm.DELETE("/:id", m.productHandler.Delete)
+
 }

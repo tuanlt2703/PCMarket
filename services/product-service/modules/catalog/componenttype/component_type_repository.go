@@ -32,18 +32,18 @@ func (repo *ComponentTypeRepository) GetAll() ([]ComponentType, error) {
 	}
 	defer rows.Close()
 
-	var componentList []ComponentType
+	var ctList []ComponentType
 	for rows.Next() {
 		ct, err := parseComponentType(rows)
 		if err != nil {
 			return nil, err
 		}
-		componentList = append(componentList, ct)
+		ctList = append(ctList, ct)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	return componentList, nil
+	return ctList, nil
 }
 
 func (repo *ComponentTypeRepository) GetByID(id int) (ComponentType, error) {
@@ -51,45 +51,45 @@ func (repo *ComponentTypeRepository) GetByID(id int) (ComponentType, error) {
 
 	row := repo.db.Conn().QueryRow(context.Background(), query, id)
 
-	component, err := parseComponentType(row)
+	ct, err := parseComponentType(row)
 	if err != nil {
 		return ComponentType{}, err
 	}
-	return component, nil
+	return ct, nil
 }
 
-func (repo *ComponentTypeRepository) Create(newComponent CreateComponentType) (ComponentType, error) {
+func (repo *ComponentTypeRepository) Create(createComponentType CreateComponentType) (ComponentType, error) {
 	query := `insert into component_types (name, description, is_active)
 	          values ($1, $2, coallesce($3, true))`
 
 	row := repo.db.Conn().QueryRow(context.Background(), query,
-		newComponent.Name,
-		newComponent.Description,
-		newComponent.IsActive)
+		createComponentType.Name,
+		createComponentType.Description,
+		createComponentType.IsActive)
 
-	component, err := parseComponentType(row)
+	ct, err := parseComponentType(row)
 	if err != nil {
 		return ComponentType{}, err
 	}
-	return component, nil
+	return ct, nil
 }
 
-func (repo *ComponentTypeRepository) Update(id int, updateComponent UpdateComponentType) (ComponentType, error) {
+func (repo *ComponentTypeRepository) Update(id int, updateComponentType UpdateComponentType) (ComponentType, error) {
 	query := `update component_types
 	             set description = coallesce($1, description),
 			         is_active = coallesce($2, is_active)
 	           where id = $3 `
 
 	row := repo.db.Conn().QueryRow(context.Background(), query,
-		updateComponent.Description,
-		updateComponent.IsActive,
+		updateComponentType.Description,
+		updateComponentType.IsActive,
 		id)
 
-	component, err := parseComponentType(row)
+	ct, err := parseComponentType(row)
 	if err != nil {
 		return ComponentType{}, err
 	}
-	return component, nil
+	return ct, nil
 }
 
 func (repo *ComponentTypeRepository) Delete(id int) error {

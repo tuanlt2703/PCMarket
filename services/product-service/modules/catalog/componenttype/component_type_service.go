@@ -16,12 +16,12 @@ func (svc *ComponentTypeService) GetByID(id int) (ComponentType, error) {
 	return svc.repo.GetByID(id)
 }
 
-func (svc *ComponentTypeService) Create(newComponent CreateComponentType) (ComponentType, error) {
-	return svc.repo.Create(newComponent)
+func (svc *ComponentTypeService) Create(createComponentType CreateComponentType) (ComponentType, error) {
+	return svc.repo.Create(createComponentType)
 }
 
-func (svc *ComponentTypeService) Update(id int, updateComponent UpdateComponentType) (ComponentType, error) {
-	return svc.repo.Update(id, updateComponent)
+func (svc *ComponentTypeService) Update(id int, updateComponentType UpdateComponentType) (ComponentType, error) {
+	return svc.repo.Update(id, updateComponentType)
 }
 
 func (svc *ComponentTypeService) Delete(id int) error {
