@@ -19,7 +19,7 @@ func NewComponentTypeRepository(db *database.DB) *ComponentTypeRepository {
 // A helper function to parse a component_types row to ComponentType struct
 func parseComponentType(row pgx.Row) (ComponentType, error) {
 	var ct ComponentType
-	err := row.Scan(&ct.ID, &ct.Code, &ct.Name, &ct.Description, &ct.IsActive, &ct.CreatedAt, &ct.UpdatedAt)
+	err := row.Scan(&ct.ID, &ct.Name, &ct.Description, &ct.IsActive, &ct.CreatedAt, &ct.UpdatedAt)
 	return ct, err
 }
 
@@ -59,11 +59,10 @@ func (repo *ComponentTypeRepository) GetByID(id int) (ComponentType, error) {
 }
 
 func (repo *ComponentTypeRepository) Create(newComponent CreateComponentType) (ComponentType, error) {
-	query := `insert into component_types (code, name, description, is_active)
-	          values ($1, $2, $3, coallesce($4, true))`
+	query := `insert into component_types (name, description, is_active)
+	          values ($1, $2, coallesce($3, true))`
 
 	row := repo.db.Conn().QueryRow(context.Background(), query,
-		newComponent.Code,
 		newComponent.Name,
 		newComponent.Description,
 		newComponent.IsActive)
