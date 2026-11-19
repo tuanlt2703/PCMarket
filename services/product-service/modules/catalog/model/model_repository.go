@@ -66,7 +66,7 @@ func (repo *ModelRepository) Create(createModel CreateModel) (Model, error) {
 	var md Model
 	err := pgx.BeginFunc(ctx, repo.db.Conn(), func(tx pgx.Tx) error {
 		query := `insert into models (component_type_id, manufacturer_id, model_name, description, release_date, is_active)
-		          values ($1, $2, $3, $4, $5::date, COALESCE($6, TRUE))
+		          values ($1, $2, $3, $4, $5::date, coalesce($6, TRUE))
 		          returning id`
 
 		var id int64
@@ -95,7 +95,7 @@ func (repo *ModelRepository) Update(id int, updateModel UpdateModel) error {
 	             set model_name = $1,
 			         description = $2,
 			         release_date = $3,
-			         is_active = $4,
+			         is_active = $4
 	           where id = $5 `
 
 	result, err := repo.db.Conn().Exec(context.Background(), query,

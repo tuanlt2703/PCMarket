@@ -28,6 +28,7 @@ func (handler *ComponentTypeHandler) GetByID(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	ct, err := handler.svc.GetByID(id)
@@ -43,6 +44,7 @@ func (handler *ComponentTypeHandler) Create(c *gin.Context) {
 	err := c.BindJSON(&createComponentType)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	ct, err := handler.svc.Create(createComponentType)
@@ -57,12 +59,14 @@ func (handler *ComponentTypeHandler) Update(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	var updateComponentType UpdateComponentType
 	err = c.BindJSON(&updateComponentType)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	ct, err := handler.svc.Update(id, updateComponentType)
@@ -77,6 +81,7 @@ func (handler *ComponentTypeHandler) Delete(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	err = handler.svc.Delete(id)

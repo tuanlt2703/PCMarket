@@ -28,6 +28,7 @@ func (handler *ModelHandler) GetByID(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	md, err := handler.svc.GetByID(id)
@@ -43,6 +44,7 @@ func (handler *ModelHandler) Create(c *gin.Context) {
 	err := c.BindJSON(&createModel)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	md, err := handler.svc.Create(createModel)
@@ -57,12 +59,14 @@ func (handler *ModelHandler) Update(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	var updateModel UpdateModel
 	err = c.BindJSON(&updateModel)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	err = handler.svc.Update(id, updateModel)
@@ -77,6 +81,7 @@ func (handler *ModelHandler) Delete(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	err = handler.svc.Delete(id)

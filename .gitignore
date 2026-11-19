@@ -35,3 +35,6 @@ go.work.sum
 .env
 .env.*
 !.env.example
+
+#
+Bruno TestAPI/

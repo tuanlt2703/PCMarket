@@ -60,7 +60,7 @@ func (repo *ComponentTypeRepository) GetByID(id int) (ComponentType, error) {
 
 func (repo *ComponentTypeRepository) Create(createComponentType CreateComponentType) (ComponentType, error) {
 	query := `insert into component_types (name, description, is_active)
-	          values ($1, $2, coallesce($3, true))`
+	          values ($1, $2, coalesce($3, true)) returning *`
 
 	row := repo.db.Conn().QueryRow(context.Background(), query,
 		createComponentType.Name,
@@ -76,9 +76,10 @@ func (repo *ComponentTypeRepository) Create(createComponentType CreateComponentT
 
 func (repo *ComponentTypeRepository) Update(id int, updateComponentType UpdateComponentType) (ComponentType, error) {
 	query := `update component_types
-	             set description = coallesce($1, description),
-			         is_active = coallesce($2, is_active)
-	           where id = $3 `
+	             set description = coalesce($1, description),
+			         is_active = coalesce($2, is_active)
+	           where id = $3 
+			   returning *`
 
 	row := repo.db.Conn().QueryRow(context.Background(), query,
 		updateComponentType.Description,

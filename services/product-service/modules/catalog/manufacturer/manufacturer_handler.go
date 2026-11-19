@@ -28,6 +28,7 @@ func (handler *ManufacturerHandler) GetByID(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	mf, err := handler.svc.GetByID(id)
@@ -43,6 +44,7 @@ func (handler *ManufacturerHandler) Create(c *gin.Context) {
 	err := c.BindJSON(&createManufacturer)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	mf, err := handler.svc.Create(createManufacturer)
@@ -57,12 +59,14 @@ func (handler *ManufacturerHandler) Update(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	var updateManufacturer UpdateManufacturer
 	err = c.BindJSON(&updateManufacturer)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	mf, err := handler.svc.Update(id, updateManufacturer)
@@ -77,6 +81,7 @@ func (handler *ManufacturerHandler) Delete(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	err = handler.svc.Delete(id)

@@ -60,7 +60,7 @@ func (repo *ManufacturerRepository) GetByID(id int) (Manufacturer, error) {
 
 func (repo *ManufacturerRepository) Create(createManufacturer CreateManufacturer) (Manufacturer, error) {
 	query := `insert into manufacturers (name, description, is_active)
-	          values ($1, $2, coallesce($3, true))`
+	          values ($1, $2, coalesce($3, true)) returning *`
 
 	row := repo.db.Conn().QueryRow(context.Background(), query,
 		createManufacturer.Name,
@@ -75,10 +75,11 @@ func (repo *ManufacturerRepository) Create(createManufacturer CreateManufacturer
 }
 
 func (repo *ManufacturerRepository) Update(id int, updateManufacturer UpdateManufacturer) (Manufacturer, error) {
-	query := `update manufacturer
-	             set description = coallesce($1, description),
-			         is_active = coallesce($2, is_active)
-	           where id = $3 `
+	query := `update manufacturers
+	             set description = coalesce($1, description),
+			         is_active = coalesce($2, is_active)
+	           where id = $3
+			   returning *`
 
 	row := repo.db.Conn().QueryRow(context.Background(), query,
 		updateManufacturer.Description,
