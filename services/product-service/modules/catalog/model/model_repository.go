@@ -84,35 +84,48 @@ func (repo *ModelRepository) Create(createModel CreateModel) (Model, error) {
 		md, err = parseModel(tx.QueryRow(ctx, `select * from model_detail where id = $1`, id))
 		return err
 	})
+
 	if err != nil {
 		return Model{}, err
 	}
 	return md, nil
 }
 
-func (repo *ModelRepository) Update(id int, updateModel UpdateModel) error {
-	query := `update models
-	             set model_name = $1,
-			         description = $2,
-			         release_date = $3,
-			         is_active = $4
-	           where id = $5 `
+func (repo *ModelRepository) Update(id int, updateModel UpdateModel) (Model, error) {
+	ctx := context.Background()
 
-	result, err := repo.db.Conn().Exec(context.Background(), query,
-		updateModel.ModelName,
-		updateModel.Description,
-		updateModel.ReleaseDate,
-		updateModel.IsActive,
-		id)
+	var md Model
+	err := pgx.BeginFunc(ctx, repo.db.Conn(), func(tx pgx.Tx) error {
+		query := `update models
+	                 set model_name = $1,
+			             description = $2,
+			             release_date = $3,
+			             is_active = $4
+	               where id = $5 `
+
+		result, err := tx.Exec(ctx, query,
+			updateModel.ModelName,
+			updateModel.Description,
+			updateModel.ReleaseDate,
+			updateModel.IsActive,
+			id)
+
+		if err != nil {
+			return err
+		}
+
+		if result.RowsAffected() == 0 {
+			return fmt.Errorf("Not found any row matches id %v", id)
+		}
+
+		md, err = parseModel(tx.QueryRow(ctx, `select * from model_detail where id = $1`, id))
+		return err
+	})
 
 	if err != nil {
-		return err
+		return Model{}, err
 	}
-	if result.RowsAffected() == 0 {
-		return fmt.Errorf("Not found any row matches id %v", id)
-	}
-
-	return nil
+	return md, nil
 }
 
 func (repo *ModelRepository) Delete(id int) error {

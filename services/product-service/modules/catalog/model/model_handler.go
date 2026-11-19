@@ -69,12 +69,12 @@ func (handler *ModelHandler) Update(c *gin.Context) {
 		return
 	}
 
-	err = handler.svc.Update(id, updateModel)
+	md, err := handler.svc.Update(id, updateModel)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.Status(http.StatusAccepted)
+	c.JSON(http.StatusAccepted, md)
 }
 
 func (handler *ModelHandler) Delete(c *gin.Context) {

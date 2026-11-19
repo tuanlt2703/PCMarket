@@ -20,7 +20,7 @@ func (svc *ModelService) Create(createModel CreateModel) (Model, error) {
 	return svc.repo.Create(createModel)
 }
 
-func (svc *ModelService) Update(id int, updateModel UpdateModel) error {
+func (svc *ModelService) Update(id int, updateModel UpdateModel) (Model, error) {
 	return svc.repo.Update(id, updateModel)
 }
 

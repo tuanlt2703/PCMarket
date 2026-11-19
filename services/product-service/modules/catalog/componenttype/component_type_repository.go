@@ -47,7 +47,7 @@ func (repo *ComponentTypeRepository) GetAll() ([]ComponentType, error) {
 }
 
 func (repo *ComponentTypeRepository) GetByID(id int) (ComponentType, error) {
-	query := "select * from component_types where id = $1 order by name"
+	query := "select * from component_types where id = $1"
 
 	row := repo.db.Conn().QueryRow(context.Background(), query, id)
 
